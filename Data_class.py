@@ -211,7 +211,7 @@ class Data:
         fullcount -= overcount
 
 # ##################################################################FIND##################################################################
-    def find(self, value, value2=None, dtype='nsfB', field='value', owner='all', match='weak', howsort='value', display='gantt_o', returnList=False):
+    def find(self, value, value2=None, dtype='all', field='value', owner='all', match='weak', howsort='value', display='gantt_o', returnList=False):
         """This will find records matching value1, except for milestones which looks between value1,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used [None]
@@ -242,12 +242,9 @@ class Data:
             for dat in self.data.keys():
                 etype = str(self.data[dat][self.entryMap['type']]).lower()  # dtype of entry
                 eowners = (self.data[dat][self.entryMap['owners']] if self.data[dat][self.entryMap['owners']] is not None else [])
-                dtype_check = False
-                owner_check = False
-                field_check = False
                 use_this_rec = False
                 # Check stuff
-                dtype_check = (dtype.lower() in pthru) or (dtype.lower() == etype) or (etype == 'na')
+                dtype_check = (dtype.lower() in pthru) or (dtype.lower() == etype) or (etype.lower() == 'na')
                 owner_check = (owner.lower() in pthru) or (owner in eowners)
                 field_check = self.data[dat][self.entryMap[field]] is not None
                 if dtype_check and owner_check and field_check:
@@ -286,7 +283,7 @@ class Data:
                         return
                     if foundMatch:
                         foundrec.append(dat)
-        if len(foundrec) > 0:
+        if len(foundrec):
             foundrec = self._getview(foundrec, howsort)
             if display == 'gantt_o':
                 self.owner_gantt_labels = True
@@ -920,29 +917,3 @@ class Data:
         return sout
 
 # ########################################################################################################################################
-    def write_NSF_quarterly(self, output_filename='HERA_NSF_2016.csv'):
-        fp = open(output_filename, 'w')
-        owners_list = ['analysis', 'arc', 'asp', 'comm', 'dsp', 'epo', 'host', 'lib', 'mc', 'node', 'pem', 'psp', 'qa', 'rtp', 'sims', 'site', 'srdr']
-
-        wbs_counter1 = 1
-        for owner in owners_list:
-            wbs_list = []
-            for dat in self.data.keys():
-                o = self.data[dat][self.entryMap['owners']]
-                t = self.data[dat][self.entryMap['type']]
-                if o[0] == owner and t == 'nsfB':
-                    wbs_list.append(dat)
-            wbs_list = self._getview(wbs_list, 'value')
-            wbs_entry = str(wbs_counter1) + ".0," + owner + '\n'
-            fp.write(wbs_entry)
-            wbs_counter2 = 1
-            for w in wbs_list:
-                wbs = str(wbs_counter1) + "." + str(wbs_counter2)
-                description = '"' + self.data[w][self.entryMap['description']] + '"'
-                idno = str(self.data[w][self.entryMap['id']])
-                value = self.data[w][self.entryMap['value']]
-                wbs_entry = ",".join([wbs, description, idno, ' ', ' ', ' ', value]) + '\n'
-                fp.write(wbs_entry)
-                wbs_counter2 += 1
-            wbs_counter1 += 1
-        fp.close()
