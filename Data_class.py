@@ -1,3 +1,4 @@
+from __future__ import absolute_import, print_function
 import os
 from operator import itemgetter
 import subprocess
@@ -20,7 +21,7 @@ class Data:
                entryMap are the common fields of the internal python database
                entryHelp has information on the different fields per dbtype
                sqlMap are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
-               each db file has the following tables (%dbtype%, trace, type, updated)"""
+               each db file has the following tables (dbtype, trace, type, updated)"""
 
         self.entryMap = {'refName': 0,  # nocase, internally set to all lower
                          'handle': 1,
@@ -39,7 +40,6 @@ class Data:
                          'id': 14,
                          'status': 15}
         self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt, 'noshow': self.noshow, 'file': self.fileout}
-        self.__setClassHelp()
         self.show_cdf = True
         self.projectStart = projectStart
         self.dbTypes = self.get_db_json('databases.json')
@@ -73,11 +73,11 @@ class Data:
 
         try:
             sm = self.getSQLmap(inFile)
-        except:
+        except IOError:
             if '+' in inFile:
-                print inFile + ' is a concatenated database -- read in and concatDat'
+                print(inFile + ' is a concatenated database -- read in and concatDat')
             else:
-                print 'Sorry, ' + inFile + ' is not a valid database'
+                print('Sorry, ' + inFile + ' is not a valid database')
             return None
         em = self.entryMap            # just to have a short-name local copy
         dbconnect = sqlite3.connect(inFile)
@@ -113,14 +113,14 @@ class Data:
             # ...trace
             for traceType in self.traceables:
                 fieldName = traceType + 'Trace'
-                qdb_exec = "SELECT * FROM trace WHERE refName='%s' COLLATE NOCASE and traceType='%s' ORDER BY level" % (refName, traceType)
+                qdb_exec = "SELECT * FROM trace WHERE refName='{}' COLLATE NOCASE and traceType='{}' ORDER BY level".format(refName, traceType)
                 qdb.execute(qdb_exec)
                 trace = qdb.fetchall()
                 entry[em[fieldName]] = []
                 for v in trace:
                     entry[em[fieldName]].append(v[1])
             # ...read in updated table
-            qdb_exec = "SELECT * FROM updated WHERE refName='%s' COLLATE NOCASE ORDER BY level" % (refName)
+            qdb_exec = "SELECT * FROM updated WHERE refName='{}' COLLATE NOCASE ORDER BY level".format(refName)
             qdb.execute(qdb_exec)
             updates = qdb.fetchall()
             entry[em['updated']] = []
@@ -129,27 +129,29 @@ class Data:
             # ...put in dictionary if not a duplicate
             if refName in data.keys():
                 existingEntry = data[refName]
-                print 'name collision:  ' + refName
-                print '--> not adding to data'
-                print '[\n', existingEntry
-                print '\n]\n[\n', entry
-                print '\n]'
+                print('name collision:  ' + refName)
+                print('--> not adding to data')
+                print('[\n', existingEntry)
+                print('\n]\n[\n', entry)
+                print('\n]')
             else:
                 data[refName] = entry
             # ...give warning if not in 'allowedTypes' (but keep anyway)
             if entry[em['type']] not in allowedTypes and entry[em['type']] is not None:
-                print 'Warning type not in allowed list: ' + entry[em['type']]
+                print('Warning type not in allowed list: ' + entry[em['type']])
+                print('Allowed types are:')
+                print(allowedTypes)
 
         # check Trace table to ensure that all refNames are valid
         for tracetype in self.traceables:
             fieldName = traceType + 'Trace'
-            qdb_exec = "SELECT * FROM trace where traceType='%s'" % (traceType)
+            qdb_exec = "SELECT * FROM trace where traceType='{}'".format(traceType)
             qdb.execute(qdb_exec)
             trace = qdb.fetchall()
             for t in trace:
                 t_refName = t[0].lower()
                 if t_refName not in data.keys():
-                    print '%s not in data records:  %s' % (fieldName, t[0])
+                    print('{} not in data records:  {}'.format(fieldName, t[0]))
         # check Updated table to ensure that all refNames are valid
         qdb_exec = "SELECT * FROM updated"
         qdb.execute(qdb_exec)
@@ -159,11 +161,11 @@ class Data:
             u_refName = u[0].lower()
             if u_refName not in data.keys() and u_refName not in already_found:
                 already_found.append(u_refName)
-                print 'updated not in data records:  ', u[0]
+                print('updated not in data records:  ', u[0])
         dbconnect.close()
         if 'projectstart' in data.keys():
             self.projectStart = data['projectstart'][self.entryMap['value']]
-            print 'Setting project start to ' + self.projectStart
+            print('Setting project start to ' + self.projectStart)
         if selfVersion:
             self.data = data
             self.db = db
@@ -179,10 +181,10 @@ class Data:
         return x
 
     def getSQLmap(self, inFile):
-        try:
+        if os.path.exists(inFile):
             dbconnect = sqlite3.connect(inFile)
-        except:
-            print inFile + ' not found'
+        else:
+            print(inFile + ' not found')
             return 0
         qdb = dbconnect.cursor()
         qdb.execute("PRAGMA table_info(records)")
@@ -203,7 +205,7 @@ class Data:
                 fullcount += 1
                 dbcount += 1
                 if entry in self.data.keys():
-                    print entry + ' already present - overwriting'
+                    print(entry + ' already present - overwriting')
                     overcount += 1
                 self.data[entry] = db.data[entry]
         fullcount -= overcount
@@ -223,7 +225,7 @@ class Data:
 
         pthru = ['any', 'all']
         if len(self.data) == 0:
-            print 'Please read in the data'
+            print('Please read in the data')
             return 0
         foundrec = []
         if self.dbtype in self.ganttables and field.lower() == 'value':
@@ -235,7 +237,7 @@ class Data:
                 value1time = time.mktime(time.strptime(value, '%y/%m/%d'))
                 value2time = time.mktime(time.strptime(value2, '%y/%m/%d'))
             except ValueError:
-                print value, value2
+                print(value, value2)
                 return 'Incorrect ganttable value term'
             for dat in self.data.keys():
                 etype = str(self.data[dat][self.entryMap['type']]).lower()  # dtype of entry
@@ -251,13 +253,13 @@ class Data:
                 if dtype_check and owner_check and field_check:
                     if '-' in self.data[dat][self.entryMap[field]]:
                         val2check = self.data[dat][self.entryMap[field]].split('-')[0].strip()
-                        print dat + ':  Date range given - looking at start: ', val2check
+                        print(dat + ':  Date range given - looking at start: ', val2check)
                     else:
                         val2check = str(self.data[dat][self.entryMap[field]])
                     try:
                         timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
                     except ValueError:
-                        print 'Improper time: %s (%s)' % (self.data[dat][self.entryMap[field]], self.data[dat][self.entryMap['name']])
+                        print('Improper time: {} ({})'.format(self.data[dat][self.entryMap[field]], self.data[dat][self.entryMap['name']]))
                         timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
                     if timevalue >= value1time and timevalue <= value2time:
                         use_this_rec = True
@@ -280,7 +282,7 @@ class Data:
                     elif field in self.entryMap.keys():
                         foundMatch = self.__searchfield(value, self.data[dat][self.entryMap[field]], match)
                     else:
-                        print 'Invalid field for search'
+                        print('Invalid field for search')
                         return
                     if foundMatch:
                         foundrec.append(dat)
@@ -295,7 +297,7 @@ class Data:
                 display = 'listing'
             self.displayTypes[display](foundrec, howsort=None)
         else:
-            print 'No records found.'
+            print('No records found.')
         if returnList:
             return foundrec
 
@@ -342,10 +344,10 @@ class Data:
             else:
                 if chk not in unique_values:
                     unique_values.append(chk)
-        print "Unique values for ", field
+        print("Unique values for ", field)
         for q in unique_values:
             if q is not None:
-                print '\t', q
+                print('\t', q)
         if returnList:
             return unique_values
 
@@ -365,20 +367,20 @@ class Data:
             value = self.data[f][self.entryMap['value']]
             status = self.data[f][self.entryMap['status']]
             notes = self.data[f][self.entryMap['notes']]
-            print refName, ':  ', dbdesc, ' [', value, ']'
-            print '\t', status, ':  ', notes
-        print '\nRemember columns:  handle, value, description, type, status, owners, notes'
+            print(refName, ':  ', dbdesc, ' [', value, ']')
+            print('\t', status, ':  ', notes)
+        print('\nRemember columns:  handle, value, description, type, status, owners, notes')
         return str(fnd[0])
 
     def since(self, dstr):
         dbconnect = sqlite3.connect(self.inFile)
         qdb = dbconnect.cursor()
-        qdb_exec = "SELECT refName FROM updated WHERE updated>'%s'" % (dstr)
+        qdb_exec = "SELECT refName FROM updated WHERE updated>'{}'".format(dstr)
         qdb.execute(qdb_exec)
         updates = qdb.fetchall()
         refNames = []
         for u in updates:
-            print u
+            print(u)
             refNames.append(u[0].lower())
         self.show(refNames, showTrace=False)
 
@@ -401,25 +403,25 @@ class Data:
         if type(new_value) is not list:
             new_value = [new_value]
         if len(field) != len(new_value):
-            print 'Number of fields and values does not match'
-            print '==> returning without update'
+            print('Number of fields and values does not match')
+            print('==> returning without update')
             return False
         if 'refName' in field and field[-1] != 'refName':
-            print 'refName should be last field changed - or outcome may not be what is desired'
-            print '==> returning without update'
+            print('refName should be last field changed - or outcome may not be what is desired')
+            print('==> returning without update')
             return False
         db = sqlite3.connect(self.inFile)
         qdb = db.cursor()
-        qdb.execute("SELECT * FROM records WHERE refName='%s'" % (refName))
+        qdb.execute("SELECT * FROM records WHERE refName='{}'".format(refName))
         changing = qdb.fetchall()
         if len(changing) > 1:
-            print 'Duplicated refName in ' + self.inFile + ' (' + refName + ')'
-            print '==> returning without update, so fix that!'
+            print('Duplicated refName in ' + self.inFile + ' (' + refName + ')')
+            print('==> returning without update, so fix that!')
             db.close()
             return False
         changed = False
         if len(changing) == 0:
-            print 'Adding new entry ' + refName
+            print('Adding new entry ' + refName)
             qdb.execute("SELECT * FROM records ORDER BY id")
             cnt = qdb.fetchall()
             new_id = cnt[-1][self.sqlMap['id']] + 1  # works since we SORT BY id
@@ -438,19 +440,19 @@ class Data:
                 else:
                     trlist = [new_value[i]]
                 for tr in trlist:
-                    print '\tAdding trace ' + ttype + '.' + tr + ' to ' + refName
+                    print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refName)
                     qf = (refName, tr, 0, ttype)
                     qdb.execute("INSERT INTO trace(refName,traceName,level,traceType) VALUES (?,?,?,?)", qf)
             elif fld not in self.sqlMap.keys():
-                print '%s is not a database field' % (fld)
+                print('{} is not a database field'.format(fld))
             elif fld == 'refName':
-                print '\tChanging name %s to %s' % (refName, new_value[i])
-                print "==> I'm not entirely sure this is comprehensive yet or not"
+                print('\tChanging name {} to {}'.format(refName, new_value[i]))
+                print("==> I'm not entirely sure this is comprehensive yet or not")
                 if self.changeName(refName, new_value[i]):
                     changed = True
             else:
-                print '\tChanging %s.%s to %s' % (refName, fld, new_value[i])
-                qdb_exec = "UPDATE records SET %s='%s' WHERE refName='%s'" % (fld, new_value[i], refName)
+                print('\tChanging {}.{} to {}'.format(refName, fld, new_value[i]))
+                qdb_exec = "UPDATE records SET {}='{}' WHERE refName='{}'".format(fld, new_value[i], refName)
                 qdb.execute(qdb_exec)
                 changed = True
         if changed:  # Need to update 'updated' database
@@ -459,7 +461,7 @@ class Data:
             self.readData()
             db = sqlite3.connect(self.inFile)
             qdb = db.cursor()
-            qdb_exec = "SELECT * FROM updated where refName='%s' ORDER BY level" % (refName)
+            qdb_exec = "SELECT * FROM updated where refName='{}' ORDER BY level".format(refName)
             qdb.execute(qdb_exec)
             upd = qdb.fetchall()
             try:
@@ -469,7 +471,7 @@ class Data:
             qdb_exec = "INSERT INTO updated VALUES (?,?,?,?,?)"
             if dt is None:
                 bbb = datetime.datetime.now()
-                dt = "%02d/%02d/%02d" % (bbb.year - 2000, bbb.month, bbb.day)
+                dt = "{:02d}/{:02d}/{:02d}".format(bbb.year - 2000, bbb.month, bbb.day)
             if updater is None:
                 updater = raw_input("Who is updating:  ")
             if upnote is None:
@@ -483,28 +485,28 @@ class Data:
 
     def changeName(self, old_name=None, new_name=None):
         """Need to update all dbs when the refName is changed"""
-        print "This will change the refName '%s' to '%s' in all databases" % (old_name, new_name)
-        print "\tFirst in " + self.inFile
+        print("This will change the refName '{}' to '{}' in all databases".format(old_name, new_name))
+        print("\tFirst in " + self.inFile)
         db = sqlite3.connect(self.inFile)
         qdb = db.cursor()
-        qdb_exec = "SELECT * FROM records WHERE refName='%s'" % (old_name)
+        qdb_exec = "SELECT * FROM records WHERE refName='{}'".format(old_name)
         qdb.execute(qdb_exec)
         changing = qdb.fetchall()
         if len(changing) == 1:
-            qdb_exec = "UPDATE records SET refName='%s' WHERE refName='%s'" % (new_name, old_name)
+            qdb_exec = "UPDATE records SET refName='{}' WHERE refName='{}'".format(new_name, old_name)
             qdb.execute(qdb_exec)
-            qdb_exec = "UPDATE trace SET refName='%s' WHERE refName='%s'" % (new_name, old_name)
+            qdb_exec = "UPDATE trace SET refName='{}' WHERE refName='{}'".format(new_name, old_name)
             qdb.execute(qdb_exec)
-            qdb_exec = "UPDATE updated SET refName='%s' WHERE refName='%s'" % (new_name, old_name)
+            qdb_exec = "UPDATE updated SET refName='{}' WHERE refName='{}'".format(new_name, old_name)
             qdb.execute(qdb_exec)
             db.commit()
             db.close()
         elif len(changing) > 1:
-            print 'Ambiguous entry:  %s has %d entries' % (old_name, len(changing))
+            print('Ambiguous entry:  {} has {} entries'.format(old_name, len(changing)))
             db.close()
             return False
         else:
-            print '\tNone to change'
+            print('\tNone to change')
             db.close()
             return False
         if self.dbtype in self.traceables:
@@ -512,28 +514,28 @@ class Data:
                 dirName = dbTypes[tr][dbEM['dirName']]
                 path = os.path.join(pbwd, dirName)
                 inFile = os.path.join(path, dbTypes[tr][dbEM['inFile']])
-                print '\tChecking ' + inFile
+                print('\tChecking ' + inFile)
                 db = sqlite3.connect(inFile)
                 qdb = db.cursor()
-                qdb_exec = "SELECT * FROM trace WHERE traceName='%s' and traceType='%s'" % (old_name, self.dbtype)
+                qdb_exec = "SELECT * FROM trace WHERE traceName='{}' and traceType='{}'".format(old_name, self.dbtype)
                 qdb.execute(qdb_exec)
                 changing = qdb.fetchall()
                 if len(changing) > 0:
                     plural = 's'
                     if len(changing) == 1:
                         plural = ''
-                    print '\t\t%d record%s' % (len(changing), plural)
-                    qdb_exec = "UPDATE trace SET traceName='%s' WHERE traceName='%s' and traceType='%s'" % (new_name, old_name, self.dbtype)
+                    print('\t\t{} record{}'.format(len(changing), plural))
+                    qdb_exec = "UPDATE trace SET traceName='{}' WHERE traceName='{}' and traceType='{}'".format(new_name, old_name, self.dbtype)
                     qdb.execute(qdb_exec)
                     db.commit()
                 else:
-                    print '\t\tNone to change'
+                    print('\t\tNone to change')
                 db.close()
         self.readData()
         return True
 
     def checkTrace(self, checkrec='all'):
-        print 'checkTrace not implemented...'
+        print('checkTrace not implemented...')
         return
         if checkrec == 'all':
             checkrec = self.data.keys()
@@ -543,23 +545,23 @@ class Data:
             dirName = dbTypes[tr][dbEM['dirName']]
             path = os.path.join(pbwd, dirName)
             inFile = os.path.join(path, dbTypes[tr][dbEM['inFile']])
-            print 'Checking %s %sTrace in %s against %s' % (self.dbtype, tr, checkrec, inFile)
+            print('Checking {} {}Trace in {} against {}'.format(self.dbtype, tr, checkrec, inFile))
             db = sqlite3.connect(inFile)
             qdb = db.cursor()
             for rec in checkrec:
                 for rs in self.data[rec][self.entryMap[tr + 'Trace']]:
                     if len(rs) > 0:
-                        qdb_exec = "SELECT * FROM records WHERE refName='%s'" % (rs)
+                        qdb_exec = "SELECT * FROM records WHERE refName='{}'".format(rs)
                         qdb.execute(qdb_exec)
                         checking = qdb.fetchall()
                         if len(checking) == 0:
-                            print rs + ' not found in entry ' + self.dbtype + ':' + rec
+                            print(rs + ' not found in entry ' + self.dbtype + ':' + rec)
 
     def checkHandle(self, handle):
         badHandle = not handle.isalpha()
         if badHandle:
-            print "Note that tex can't have any digits or non-alpha characters"
-            print 'THIS VERSION DOESNT QUITE FIX IT!!!!!'
+            print("Note that tex can't have any digits or non-alpha characters")
+            print('THIS VERSION DOESNT QUITE FIX IT!!!!!')
             useHandle = raw_input('Please try a new handle:  ')
             self.checkHandle(useHandle)
         else:
@@ -567,8 +569,8 @@ class Data:
         return useHandle
 
     def _getRecordItems4Input(self, name):
-        print 'Fields for ' + name
-        print 'Hit <return> if none'
+        print('Fields for ' + name)
+        print('Hit <return> if none')
         print
         field = []
         new_values = []
@@ -583,7 +585,7 @@ class Data:
             if len(nv) > 0:
                 field.append(e)
                 new_values.append(nv)
-        print 'Input trace values:  (<return> for none or comma-separated list for multiple)'
+        print('Input trace values:  (<return> for none or comma-separated list for multiple)')
         for tr in self.traceables:
             e = tr + 'Trace'
             cursor = '\tInput ' + e + ':  '
@@ -601,7 +603,7 @@ class Data:
         for v in sorted(sm.values()):
             for k in sm.keys():
                 if sm[k] == v:
-                    print k, '  ',
+                    print(k, '  ', end='')
         print
 
     def _getview(self, view, howsort):
@@ -641,12 +643,12 @@ class Data:
             notes = self.data[name][self.entryMap['notes']]
             idno = self.data[name][self.entryMap['id']]
             status = self.data[name][self.entryMap['status']]
-            s = '(%d) Name:  %s     (\\def\\%s)\n' % (idno, name, handle)
-            s += '\tValue:       %s\n' % (value)
-            s += '\tDescription: %s\n' % (description)
-            s += '\tType:        %s\n' % (dtype)
-            s += '\tStatus:      %s\n' % (status)
-            s += '\tNotes:       %s\n' % (notes)
+            s = '({}) Name:  {}     (\\def\\{})\n'.format(idno, name, handle)
+            s += '\tValue:       {}\n'.format(value)
+            s += '\tDescription: {}\n'.format(description)
+            s += '\tType:        {}\n'.format(dtype)
+            s += '\tStatus:      {}\n'.format(status)
+            s += '\tNotes:       {}\n'.format(notes)
             s += '\tOwner:       '
             if owners:
                 for o in owners:
@@ -671,7 +673,7 @@ class Data:
                     else:
                         for xxx in xxxTrace:
                             if len(xxx) > 0:
-                                s += '\t\t%s:  ' % (xxx)
+                                s += '\t\t{}:  '.format(xxx)
                                 # ---1---#
 # #                                try:
 # #                                    s+=(rsdata[rrr][self.entryMap['value']]+'\n')
@@ -680,12 +682,12 @@ class Data:
             s += '\tUpdated\n'
             if updated:
                 for uuu in updated:
-                    s += '\t\t%s,  %s,  %s\n' % (uuu[0].strip(), uuu[1].strip(), uuu[2].strip())
-            print s
+                    s += '\t\t{},  {},  {}\n'.format(uuu[0].strip(), uuu[1].strip(), uuu[2].strip())
+            print(s)
             if save2file:
                 fp.write(s + '\n')
         if save2file:
-            print 'Writing data to ' + output
+            print('Writing data to ' + output)
             fp.close()
         return view
 
@@ -698,10 +700,10 @@ class Data:
             val = self.data[key][self.entryMap['value']]
             stat = self.data[key][self.entryMap['status']]
             owners = self.data[key][self.entryMap['owners']]
-            oss = '(%s)' % owners[0]
-            s = '%s %8s %s:  %s\n' % (val, oss, desc, stat)
+            oss = '({})'.format(owners[0])
+            s = '{} {:8s} {}:  {}\n'.format(val, oss, desc, stat)
             output_file.write(s)
-        print 'Writing file to ', output_filename
+        print('Writing file to ', output_filename)
         output_file.close()
         return view
 
@@ -719,17 +721,16 @@ class Data:
                 sss = stat[0:statSpace] + statpad * ' '
                 kss = key + namepad * ' '
                 dss = desc[0:descSpace]
-                # print '%s  %s [%s] (%s)\t %s' % (sss,kss,val,owners[0],dss)
-                print '[%s] (%s) \t %s (%s)' % (val, owners[0], desc, key)
+                print('[{}] ({}) \t {} ({})'.format(val, owners[0], desc, key))
             else:
-                print key + namepad * ' ' + ' [' + val + '] ' + desc + '  ==> ' + stat
+                print(key + namepad * ' ' + ' [' + val + '] ' + desc + '  ==> ' + stat)
         print
         return view
 
     def gantt(self, view='all', howsort='value', plotPredecessors=True, labelLength=46):
         view = self._getview(view, howsort)
         if self.dbtype not in self.ganttables:
-            print 'You can only gantt:  ', self.ganttables
+            print('You can only gantt:  ', self.ganttables)
         if type(view) != list:
             view = [view]
         labels = []
@@ -885,7 +886,7 @@ class Data:
            ver:  long/[short]/table
            valueORdef:  [value]/def
            ==>this is from the 'legacy' tex output stuff"""
-        print 'getEntryString:  NEED TO ADD IN TYPE, OWNER, UPDATE TO OUTPUT'
+        print('getEntryString:  NEED TO ADD IN TYPE, OWNER, UPDATE TO OUTPUT')
         if valueORdef == 'value':
             value = self.data[key][self.entryMap['value']]
             description = self.data[key][self.entryMap['description']]
@@ -905,17 +906,17 @@ class Data:
         notes = self.data[key][self.entryMap['notes']]
 
         if ver[0:2] == 'lo':
-            sout = '\\' + dbTypes[self.dbtype][dbEM['texdef']] + '{%s}{%s}{%s}{%s}{%s}\n' % (key, value, description, reqspec, component)
+            sout = '\\' + dbTypes[self.dbtype][dbEM['texdef']] + '\{{}\}\{{}\}\{{}\}\{{}\}\{{}\}\n'.format(key, value, description, reqspec, component)
             if notes != '-' and notes != 'Notes':
                 sout += ('\\noindent\n' + notes + '\n\n')
             sout += ('\\vspace * {0.25in}\n\n')
         elif ver[0:2] == 'sh':
-            sout = '\\item \\underline{%s}: %s [%s] : [%s]\n' % (key, value, reqspec, component)
+            sout = '\\item \\underline\{{}\}: {} [{}] : [{}]\n'.format(key, value, reqspec, component)
         elif ver[0:2] == 'ta':
-            sout = '\\textbf{%s:} %s & %s & %s & %s \\\\ \\hline\n' % (key, description, value, reqspec, component)
+            sout = '\\textbf\{{}:\} {} & {} & {} & {} \\\\ \\hline\n'.format(key, description, value, reqspec, component)
         else:
             sout = ver + ':  Incorrect version set'
-            print sout
+            print(sout)
         return sout
 
 # ########################################################################################################################################
@@ -945,67 +946,3 @@ class Data:
                 wbs_counter2 += 1
             wbs_counter1 += 1
         fp.close()
-
-# ##################################################################HELP##################################################################
-    def __setClassHelp(self):
-        self.entryHelp = {}
-        self.entryHelp['milestone'] = ['name just repeats the keyname to help with db/internal',           #-->name
-                                       'handle to use in latex files',                                        #handle
-                                       '[YY/MM/DD[-YY/MM/DD]]',                                               #value
-                                       'general descriptive text',                                            #description
-                                       'list of valid req/spec names',                                        #reqspec trace list
-                                       'list of valid component names',                                       #component trace list
-                                       'list of valid milestone names',                                       #milestone trace list
-                                       'list of valid task names',                                            #task trace list
-                                       'list of valid risk names',                                            #risk trace list
-                                       ['goal','objective','nsf14','otherprimary','othersecondary']]          #type
-        self.entryHelp['reqspec']   = ['name just repeats the keyname to help with db/internal',           #-->name
-                                       'handle to use in latex file',                                         #handle
-                                       'text describing value',                                               #value
-                                       'general descriptive text',                                            #description
-                                       'list of valid req/spec names',                                        #reqspec trace list
-                                       'list of valid component names',                                       #component trace list
-                                       'list of valid milestone names',                                       #milestone trace list
-                                       'list of valid task names',                                            #task trace list
-                                       'list of valid risk names',                                            #risk trace list
-                                       ['L0','L1','L2','L3','L4','L5']]                                       #type
-        self.entryHelp['interface'] = ['name just repeats the keyname to help with db/internal',           #-->name
-                                       'handle to use in latex file',                                         #handle
-                                       'text describing value (note:  handle == equip1Qequip2X)',             #value
-                                       'general descriptive text',                                            #description
-                                       'list of valid req/spec names',                                        #reqspec trace list
-                                       'list of valid component names',                                       #component trace list
-                                       'list of valid milestone names',                                       #milestone trace list
-                                       'list of valid task names',                                            #task trace list
-                                       'list of valid risk names',                                            #risk trace list
-                                       ['rf','electrical','optical','control','physical','digital']]          #type
-        self.entryHelp['risk']      = ['name just repeats the keyname to help with db/internal',           #-->name
-                                       'handle to use in latex file',                                         #handle
-                                       '[very low, low, medium, high, very high]',                            #value
-                                       'general descriptive text',                                            #description
-                                       'list of valid req/spec names',                                        #reqspec trace list
-                                       'list of valid component names',                                       #component trace list
-                                       'list of valid milestone names',                                       #milestone trace list
-                                       'list of valid task names',                                            #task trace list
-                                       'list of valid risk names',                                            #risk trace list
-                                       ['Collaborator','Personnel','Schedule','Cost','Funding','Technical']]  #type
-        self.entryHelp['task']      = ['name just repeats the keyname to help with db/internal',           #-->name
-                                       'handle to use in latex file',                                         #handle
-                                       '[YY/MM/DD[-YY/MM/DD]]',                                               #value
-                                       'general descriptive text',                                            #description
-                                       'list of valid req/spec names',                                        #reqspec trace list
-                                       'list of valid component names',                                       #component trace list
-                                       'list of valid milestone names',                                       #milestone trace list
-                                       'list of valid task names',                                            #task trace list
-                                       'list of valid risk names',                                            #risk trace list
-                                       '']                                                                    #type
-        self.entryHelp['wbs']       = ['name just repeats the keyname to help with db/internal',           #-->name
-                                       'handle to use in latex file',                                         #handle
-                                       '[YY/MM/DD[-YY/MM/DD]]',                                               #value
-                                       'general descriptive text',                                            #description
-                                       'list of valid req/spec names',                                        #reqspec trace list
-                                       'list of valid component names',                                       #component trace list
-                                       'list of valid milestone names',                                       #milestone trace list
-                                       'list of valid task names',                                            #task trace list
-                                       'list of valid risk names',                                            #risk trace list
-                                       'wbs is just a concatentation of milestones and tasks']                #type

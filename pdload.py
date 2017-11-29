@@ -1,45 +1,44 @@
-import sys
+from __future__ import absolute_import, division, print_function
 import code_path
-base_code_path = code_path.get('ProjectData')
-sys.path.append(base_code_path)
+base_code_path = code_path.set('ProjectData')
 import Data_class
-#import Arch_class
-#import Cost_class
+# import Arch_class
+# import Cost_class
 
 mi = Data_class.Data('milestone')
 mi.readData()
-print '\tmilestone array mi'
+print('\tmilestone array mi')
 NotOnlyMilestones = False
 if NotOnlyMilestones:
     ta = Data_class.Data('task')
     ta.readData()
-    print '\ttask array ta'
+    print('\ttask array ta')
     wb = Data_class.Data('wbs')
     wb.concatDat([mi, ta])
-    print '\twbs array wb'
+    print('\twbs array wb')
     rs = Data_class.Data('reqspec')
     rs.readData()
-    print '\treqspec array rs'
+    print('\treqspec array rs')
     ri = Data_class.Data('risk')
     ri.readData()
-    print '\trisk array ri'
+    print('\trisk array ri')
     ic = Data_class.Data('interface')
     ic.readData()
-    print '\tinterface array ic'
+    print('\tinterface array ic')
     ar = Arch_class.Data(verbosity=False)
     ar.readData()
-    print '\tArchitecture array ar'
+    print('\tArchitecture array ar')
     co = Cost_class.Cost()
     co.getCost()
     co.getBudget()
-    print '\tCost array co'
+    print('\tCost array co')
 
 
 def getlist(filename):
     try:
         fp = open(filename, 'r')
     except IOError:
-        print filename + "doesn't exist"
+        print(filename + "doesn't exist")
         return 0
 
     lines = fp.readlines()
@@ -68,7 +67,7 @@ def findall(db, field, names=None):
         names = db.data.keys()
     for v in names:
         if len(db.data[v][field]) > 0:
-            print v, db.data[v][field]
+            print(v, db.data[v][field])
 
 
 name = 0
@@ -87,15 +86,14 @@ notes = 12
 dbid = 13  # 'id' in entryMap
 status = 14
 
-print """Read in:
-	mi : milestones
-    """
+print("""Read in:
+    mi : milestones""")
 if NotOnlyMilestones:
-    print """
-	ta : tasks
-	mi+ta ==> wb: wbs
-	rs : reqspecs
-	ri : risk
-	ic : interfaces
-	ar : architecture
-	co : cost"""
+    print("""
+    ta : tasks
+    mi+ta ==> wb: wbs
+    rs : reqspecs
+    ri : risk
+    ic : interfaces
+    ar : architecture
+    co : cost""")

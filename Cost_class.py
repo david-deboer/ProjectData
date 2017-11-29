@@ -7,14 +7,8 @@
 ##    print row
 
 import xlrd
-import os, os.path, sys
-#sys.path.append('../')
+import os
 import utils
-pbwd = utils.getBase('ProjectBook')
-archpath = os.path.join(pbwd,'Architecture')
-costpath = os.path.join(pbwd,'Costing')
-sys.path.append(archpath)
-sys.path.append(costpath)
 import Arch_class
 
 class Cost:
@@ -88,7 +82,7 @@ class Cost:
         g = utils.money(self.grandTotal,0)
         #print '\tEquipment sub-total = ' + g
         print '\tScope = %.0f' % self.N
-        
+
         return len(level[1])
 
     def getBudget(self,costfile='budget.xlsx',verbose=False):
@@ -119,7 +113,7 @@ class Cost:
                 print '%-10s' % (cat),
                 for inst in self.inst:
                     print '%11s  ' % (utils.money(self.expenses[inst][c],0)),
-                print            
+                print
 
     def writeTex(self, outFile=None, filt=True, outType='table'):
         """Writes the simple costing output tex file, to be used in other compiling files"""
@@ -153,7 +147,7 @@ class Cost:
                 fp.write(texline)
             colCtr=0
             for lev1 in self.level[0]:
-                colCtr+=1                
+                colCtr+=1
                 k1 = lev1.lower()
                 g = utils.money(self.amt[k1],0,'\$')
                 texline = '\\noindent\n\\textbf{%s:}  %s\n\\vspace{-0.1in}\n\\begin{itemize}[parsep=-2pt, itemsep=-3pt]\n' % (lev1,g)

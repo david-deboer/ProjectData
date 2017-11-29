@@ -1,14 +1,6 @@
 import os
 
 
-def getBase(project_path):
-    import json
-    import os.path
-    with open(os.path.expanduser('~/.paths.json'), 'r') as f:
-        path_data = json.load(f)
-    return os.path.expanduser(path_data.get(project_path))
-
-
 def money(v, a=2, d='$'):
     """I thought about using e.g. pyMoney etc, but overkill and others
        would have to download the package...
