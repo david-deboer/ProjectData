@@ -93,13 +93,13 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
 
     # Plot the data
     for i in range(0, len(ylabels)):
-        start_date,end_date = task_dates[ylabels[i]]
+        start_date, end_date = task_dates[ylabels[i]]
         if start_date == end_date:  # Milestone
             clr = percent_complete[i]
             mkr = 'D'
-            plt.plot(end_date, i*step+ymin, mkr, color=clr, markersize=8)
+            plt.plot(end_date, i * step + ymin, mkr, color=clr, markersize=8)
         else:
-            plt.barh(i*step+ymin, end_date - start_date, left=start_date, height=0.3, align='center', color='blue', alpha=0.75)
+            plt.barh(i * step + ymin, end_date - start_date, left=start_date, height=0.3, align='center', color='blue', alpha=0.75)
             # if percent_complete is not None and percent_complete[i]>0.0:
             #     plt.barh(i*step+ymin, (end_date - start_date)*percent_complete[i], left=start_date, height=0.15, align='center', color='red', alpha = 0.75)
             # ax.barh((i*0.5)+0.5+0.05, (end_date - start_date)*studentEffort, left=start_date, height=0.1, align='center', color='yellow', alpha = 0.75)
@@ -118,26 +118,25 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
 
     # Plot other_labels if present
     if other_labels is not None:
-        for i in range(0,len(ylabels)):
-            start_date,end_date = task_dates[ylabels[i]]
-            plt.text(end_date+5,i*step+ymin,str(other_labels[i][0]))
+        for i in range(0, len(ylabels)):
+            start_date, end_date = task_dates[ylabels[i]]
+            plt.text(end_date + 5, i * step + ymin, str(other_labels[i][0]))
 
     # Plot predecessors
     if predecessors is not None:
-        for i,k in enumerate(ylabels):
-            yk = i*step+ymin
+        for i, k in enumerate(ylabels):
+            yk = i * step + ymin
             xk = task_dates[k][0]
-            #print k, predecessors[i]
             for p in predecessors[i]:
                 if len(p) > 0:
                     j = ylabels.index(p)
-                    yp = j*step+ymin
+                    yp = j * step + ymin
                     xp = task_dates[p][1]
-                    ykp = [yk,yk,yp]
-                    xkp = [xk,xp,xp]
-                    plt.plot(xkp,ykp,color='k')
+                    ykp = [yk, yk, yp]
+                    xkp = [xk, xp, xp]
+                    plt.plot(xkp, ykp, color='k')
 
-    ax.xaxis_date() #Tell matplotlib that these are dates...
+    ax.xaxis_date()  # Tell matplotlib that these are dates...
     rule = rrulewrapper(MONTHLY, interval=1)
     loc = RRuleLocator(rule)
     formatter = DateFormatter("%b '%y")
@@ -148,18 +147,18 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
 
     # Finish up
     ax.invert_yaxis()
-    plt.axis(ymin=ymax+(step-0.01),ymax=ymin-(step-0.01))
+    plt.axis(ymin=ymax + (step - 0.01), ymax=ymin - (step - 0.01))
     fig.autofmt_xdate()
     plt.tight_layout()
 
-    ###---If plotting cdf---###
-    if show_cdf:  #First get total completed and check if milestones
+    # ##---If plotting cdf---###
+    if show_cdf:  # First get total completed and check if milestones
         cdf_tot = 0.0
-	for i in range(0,len(ylabels)):
-            start_date,end_date = task_dates[ylabels[i]]
-            if start_date == end_date:  #Milestone
+        for i in range(0, len(ylabels)):
+            start_date, end_date = task_dates[ylabels[i]]
+            if start_date == end_date:  # Milestone
                 if percent_complete[i] != 'w':
-                    cdf_tot+=1.0
+                    cdf_tot += 1.0
             else:
                 print 'NOT MILESTONE'
                 show_cdf = False
@@ -216,12 +215,12 @@ if just_testing:
     effort.append(0.7)
 
     customDates = []
-    customDates.append(['2014/6/1',  '2014/12/5'])
-    customDates.append(['2014/6/1',  '2014/8/7'])
-    customDates.append(['2014/7/6',  '2014/7/6'])
-    customDates.append(['2014/10/12','2015/3/5'])
-    customDates.append(['2015/2/8',  '2015/6/4'])
+    customDates.append(['2014/6/1', '2014/12/5'])
+    customDates.append(['2014/6/1', '2014/8/7'])
+    customDates.append(['2014/7/6', '2014/7/6'])
+    customDates.append(['2014/10/12', '2015/3/5'])
+    customDates.append(['2015/2/8', '2015/6/4'])
     customDates.append(['2015/5/21', '2015/6/3'])
-    customDates.append(['2015/7/2',  '2015/7/2'])
+    customDates.append(['2015/7/2', '2015/7/2'])
     customDates.append(['2015/4/23', '2015/8/1'])
-    plotGantt(ylabels,customDates)
+    plotGantt(ylabels, customDates)

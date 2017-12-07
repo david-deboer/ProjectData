@@ -24,7 +24,7 @@ class Data:
                each db file has the following tables (dbtype, trace, type, updated)"""
 
         self.entryMap = {'refName': 0,  # nocase, internally set to all lower
-                         'handle': 1,
+                         'other': 1,
                          'value': 2,
                          'description': 3,
                          'reqspecTrace': 4,
