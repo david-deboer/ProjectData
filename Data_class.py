@@ -23,23 +23,6 @@ class Data:
                sqlMap are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
                each db file has the following tables (dbtype, trace, type, updated)"""
 
-        # Shoujld make this a dictionary!
-        self.entryMap = {'refName': 0,  # nocase, internally set to all lower
-                         'other': 1,
-                         'value': 2,
-                         'description': 3,
-                         'reqspecTrace': 4,  # Should append the Traces last
-                         'componentTrace': 5,  # and derive them from databases.json
-                         'interfaceTrace': 6,
-                         'milestoneTrace': 7,
-                         'taskTrace': 8,
-                         'riskTrace': 9,
-                         'type': 10,
-                         'owners': 11,
-                         'updated': 12,
-                         'notes': 13,
-                         'id': 14,
-                         'status': 15}
         self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt, 'noshow': self.noshow, 'file': self.fileout}
         self.show_cdf = True
         self.projectStart = projectStart
@@ -80,7 +63,6 @@ class Data:
             else:
                 print('Sorry, ' + inFile + ' is not a valid database')
             return None
-        em = self.entryMap            # just to have a short-name local copy
         dbconnect = sqlite3.connect(inFile)
         qdb = dbconnect.cursor()
 
@@ -102,31 +84,29 @@ class Data:
         for rec in db:
             refName = rec[sm['refName']].lower()
             # ...get a single entry
-            entry = []
-            for v in em.keys():
-                entry.append(v)
+            entry = {}
             for v in sm.keys():
-                entry[em[v]] = rec[sm[v]]  # This maps db -> internal
-            if entry[em['status']] is None:
-                entry[em['status']] = 'No status'
-            if entry[em['owners']] is not None:
-                entry[em['owners']] = entry[em['owners']].split(',')  # make csv list a python list
+                entry[v] = rec[sm[v]]  # This maps db -> internal
+            if 'status' in entry.keys() and entry['status'] is None:
+                entry['status'] = 'No status'
+            if 'owners' in entry.keys() and entry['owners'] is not None:
+                entry['owners'] = entry['owners'].split(',')  # make csv list a python list
             # ...trace
             for traceType in self.traceables:
                 fieldName = traceType + 'Trace'
                 qdb_exec = "SELECT * FROM trace WHERE refName='{}' COLLATE NOCASE and traceType='{}' ORDER BY level".format(refName, traceType)
                 qdb.execute(qdb_exec)
                 trace = qdb.fetchall()
-                entry[em[fieldName]] = []
+                entry[fieldName] = []
                 for v in trace:
-                    entry[em[fieldName]].append(v[1])
+                    entry[fieldName].append(v[1])
             # ...read in updated table
             qdb_exec = "SELECT * FROM updated WHERE refName='{}' COLLATE NOCASE ORDER BY level".format(refName)
             qdb.execute(qdb_exec)
             updates = qdb.fetchall()
-            entry[em['updated']] = []
+            entry['updated'] = []
             for v in updates:
-                entry[em['updated']].append([v[1], v[2], v[3]])
+                entry['updated'].append([v[1], v[2], v[3]])
             # ...put in dictionary if not a duplicate
             if refName in data.keys():
                 existingEntry = data[refName]
@@ -138,8 +118,8 @@ class Data:
             else:
                 data[refName] = entry
             # ...give warning if not in 'allowedTypes' (but keep anyway)
-            if entry[em['type']] not in allowedTypes and entry[em['type']] is not None:
-                print('Warning type not in allowed list: ' + entry[em['type']])
+            if 'type' in entry.keys() and entry['type'] not in allowedTypes and entry['type'] is not None:
+                print('Warning type not in allowed list: ' + entry['type'])
                 print('Allowed types are:')
                 print(allowedTypes)
 
@@ -165,7 +145,7 @@ class Data:
                 print('updated not in data records:  ', u[0])
         dbconnect.close()
         if 'projectstart' in data.keys():
-            self.projectStart = data['projectstart'][self.entryMap['value']]
+            self.projectStart = data['projectstart']['value']
             print('Setting project start to ' + self.projectStart)
         if selfVersion:
             self.data = data
@@ -241,23 +221,23 @@ class Data:
                 print(value, value2)
                 return 'Incorrect ganttable value term'
             for dat in self.data.keys():
-                etype = str(self.data[dat][self.entryMap['type']]).lower()  # dtype of entry
-                eowners = (self.data[dat][self.entryMap['owners']] if self.data[dat][self.entryMap['owners']] is not None else [])
+                etype = str(self.data[dat]['type']).lower()  # dtype of entry
+                eowners = (self.data[dat]['owners'] if self.data[dat]['owners'] is not None else [])
                 use_this_rec = False
                 # Check stuff
                 dtype_check = (dtype.lower() in pthru) or (dtype.lower() == etype) or (etype.lower() == 'na')
                 owner_check = (owner.lower() in pthru) or (owner in eowners)
-                field_check = self.data[dat][self.entryMap[field]] is not None
+                field_check = self.data[dat][field] is not None
                 if dtype_check and owner_check and field_check:
-                    if '-' in self.data[dat][self.entryMap[field]]:
-                        val2check = self.data[dat][self.entryMap[field]].split('-')[0].strip()
+                    if '-' in self.data[dat][field]:
+                        val2check = self.data[dat][field].split('-')[0].strip()
                         print(dat + ':  Date range given - looking at start: ', val2check)
                     else:
-                        val2check = str(self.data[dat][self.entryMap[field]])
+                        val2check = str(self.data[dat][field])
                     try:
                         timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
                     except ValueError:
-                        print('Improper time: {} ({})'.format(self.data[dat][self.entryMap[field]], self.data[dat][self.entryMap['name']]))
+                        print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['name']))
                         timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
                     if timevalue >= value1time and timevalue <= value2time:
                         use_this_rec = True
@@ -266,19 +246,19 @@ class Data:
         else:
             for dat in self.data.keys():
                 foundType = False
-                if dtype.lower() in ['any', 'all'] and self.data[dat][self.entryMap['type']].lower() != 'na':
+                if dtype.lower() in ['any', 'all'] and self.data[dat]['type'].lower() != 'na':
                     foundType = True
-                elif dtype.lower() in self.data[dat][self.entryMap['type']].lower():
+                elif dtype.lower() in self.data[dat]['type'].lower():
                     foundType = True
                 if foundType:
                     foundMatch = False
                     if field.lower() in ['any', 'all']:
-                        for fff in self.entryMap.keys():
-                            foundMatch = self.__searchfield(value, self.data[dat][self.entryMap[fff]], match)
+                        for fff in self.data[dat].keys():
+                            foundMatch = self.__searchfield(value, self.data[dat][fff], match)
                             if foundMatch:
                                 break
-                    elif field in self.entryMap.keys():
-                        foundMatch = self.__searchfield(value, self.data[dat][self.entryMap[field]], match)
+                    elif field in self.data[dat].keys():
+                        foundMatch = self.__searchfield(value, self.data[dat][field], match)
                     else:
                         print('Invalid field for search')
                         return
@@ -332,7 +312,7 @@ class Data:
     def list_unique(self, field, returnList=False):
         unique_values = []
         for dat in self.data.keys():
-            chk = self.data[dat][self.entryMap[field]]
+            chk = self.data[dat][field]
             if chk is None:
                 continue
             if type(chk) == list:
@@ -353,18 +333,18 @@ class Data:
         fndk = []
         d = desc.lower()
         for dat in self.data.keys():
-            dbdesc = self.data[dat][self.entryMap['description']]
+            dbdesc = self.data[dat]['description']
             if dbdesc is not None:
                 if d in dbdesc.lower():
                     fndk.append(dat)
         fnd = []
         for f in fndk:
-            refName = self.data[f][self.entryMap['refName']]
+            refName = self.data[f]['refName']
             fnd.append(refName)
-            dbdesc = self.data[f][self.entryMap['description']]
-            value = self.data[f][self.entryMap['value']]
-            status = self.data[f][self.entryMap['status']]
-            notes = self.data[f][self.entryMap['notes']]
+            dbdesc = self.data[f]['description']
+            value = self.data[f]['value']
+            status = self.data[f]['status']
+            notes = self.data[f]['notes']
             print(refName, ':  ', dbdesc, ' [', value, ']')
             print('\t', status, ':  ', notes)
         return str(fnd[0])
@@ -546,7 +526,7 @@ class Data:
             db = sqlite3.connect(inFile)
             qdb = db.cursor()
             for rec in checkrec:
-                for rs in self.data[rec][self.entryMap[tr + 'Trace']]:
+                for rs in self.data[rec][tr + 'Trace']:
                     if len(rs) > 0:
                         qdb_exec = "SELECT * FROM records WHERE refName='{}'".format(rs)
                         qdb.execute(qdb_exec)
@@ -644,15 +624,15 @@ class Data:
             save2file = False
         for name in view:
             handle = self.makeHandle(self.refName)
-            other = self.data[name][self.entryMap['other']]
-            value = self.data[name][self.entryMap['value']]
-            description = self.data[name][self.entryMap['description']]
-            dtype = self.data[name][self.entryMap['type']]
-            owners = self.data[name][self.entryMap['owners']]
-            updated = self.data[name][self.entryMap['updated']]
-            notes = self.data[name][self.entryMap['notes']]
-            idno = self.data[name][self.entryMap['id']]
-            status = self.data[name][self.entryMap['status']]
+            other = self.data[name]['other']
+            value = self.data[name]['value']
+            description = self.data[name]['description']
+            dtype = self.data[name]['type']
+            owners = self.data[name]['owners']
+            updated = self.data[name]['updated']
+            notes = self.data[name]['notes']
+            idno = self.data[name]['id']
+            status = self.data[name]['status']
             s = '({}) Name:  {}     (\\def\\{})\n'.format(idno, name, handle)
             s += '\tValue:       {}\n'.format(value)
             s += '\tDescription: {}\n'.format(description)
@@ -678,7 +658,7 @@ class Data:
                 for traceType in self.traceables:
                     fieldName = traceType + 'Trace'
                     s += '\t' + traceType + ' trace\n'
-                    xxxTrace = self.data[name][self.entryMap[fieldName]]
+                    xxxTrace = self.data[name][fieldName]
                     if len(xxxTrace) == 0 or len(xxxTrace[0]) == 0:
                         s += '\t\tNone\n'
                     else:
@@ -707,10 +687,10 @@ class Data:
         view = self._getview(view, howsort)
         output_file = open(output_filename, 'w')
         for key in view:
-            desc = self.data[key][self.entryMap['description']]
-            val = self.data[key][self.entryMap['value']]
-            stat = self.data[key][self.entryMap['status']]
-            owners = self.data[key][self.entryMap['owners']]
+            desc = self.data[key]['description']
+            val = self.data[key]['value']
+            stat = self.data[key]['status']
+            owners = self.data[key]['owners']
             oss = '({})'.format(owners[0])
             s = '{} {:8s} {}:  {}\n'.format(val, oss, desc, stat)
             output_file.write(s)
@@ -722,10 +702,10 @@ class Data:
         """Provides a short listing of the given records (default is all).  If 'short' is True, it truncates fields per the "spaces", otherwise not"""
         view = self._getview(view, howsort)
         for key in view:
-            desc = self.data[key][self.entryMap['description']]
-            val = self.data[key][self.entryMap['value']]
-            stat = self.data[key][self.entryMap['status']]
-            owners = self.data[key][self.entryMap['owners']]
+            desc = self.data[key]['description']
+            val = self.data[key]['value']
+            stat = self.data[key]['status']
+            owners = self.data[key]['owners']
             namepad = nameSpace - len(key)
             statpad = statSpace - len(stat)
             if short:
@@ -754,23 +734,25 @@ class Data:
         movedColor = 'y'
         notyetColor = 'k'
         for v in view:
-            label = str(self.data[v][self.entryMap['description']])[0:labelLength]
+            label = str(self.data[v]['description'])[0:labelLength]
             label = pd_gantt.check_gantt_labels(label, labels)
             labels.append(label)
-            value = str(self.data[v][self.entryMap['value']])
-            status = str(self.data[v][self.entryMap['status']]).lower().strip()
-            milepred = self.data[v][self.entryMap['milestoneTrace']]
-            taskpred = self.data[v][self.entryMap['taskTrace']]
-            ownlab = self.data[v][self.entryMap['owners']]
+            value = str(self.data[v]['value'])
+            status = str(self.data[v]['status']).lower().strip()
+            milepred = self.data[v]['milestoneTrace']
             predss = []
-            if self.dbtype == 'milestone' or self.dbtype == 'wbs':
-                for x in milepred:
-                    if x in view:
-                        predss.append(str(self.data[x][self.entryMap['description']])[0:labelLength])
-            if self.dbtype == 'task' or self.dbtype == 'wbs':
-                for x in taskpred:
-                    if x in view:
-                        predss.append(str(self.data[x][self.entryMap['description']])[0:labelLength])
+            if 'milestoneTrace' in self.data[v].keys():
+                ownlab = self.data[v]['owners']
+                if self.dbtype == 'milestone' or self.dbtype == 'wbs':
+                    for x in milepred:
+                        if x in view:
+                            predss.append(str(self.data[x]['description'])[0:labelLength])
+            if 'taskTrace' in self.data[v].keys():
+                taskpred = self.data[v]['taskTrace']
+                if self.dbtype == 'task' or self.dbtype == 'wbs':
+                    for x in taskpred:
+                        if x in view:
+                            predss.append(str(self.data[x]['description'])[0:labelLength])
             pred.append(predss)
             dates.append(value)
             owner.append(ownlab)
@@ -882,7 +864,7 @@ class Data:
     def sortby(self, sb):
         sortdict = {}
         for k in self.data:
-            sdt = self.data[k][self.entryMap[sb]]
+            sdt = self.data[k][sb]
             if type(sdt) == list:
                 sdt = sdt[0]
             sortdict[k] = sdt
@@ -899,14 +881,14 @@ class Data:
            ==>this is from the 'legacy' tex output stuff"""
         print('getEntryString:  NEED TO ADD IN TYPE, OWNER, UPDATE TO OUTPUT')
         if valueORdef == 'value':
-            value = self.data[key][self.entryMap['value']]
-            description = self.data[key][self.entryMap['description']]
+            value = self.data[key]['value']
+            description = self.data[key]['description']
             reqspec = ''
-            for t in self.data[key][self.entryMap['reqspecTrace']]:
+            for t in self.data[key]['reqspecTrace']:
                 reqspec += (t + ', ')
             reqspec = reqspec.strip().strip(',')
             component = ''
-            for c in self.data[key][self.entryMap['componentTrace']]:
+            for c in self.data[key]['componentTrace']:
                 component += (c + ', ')
             component = component.strip().strip(',')
         else:
@@ -914,7 +896,7 @@ class Data:
             description = '\\' + key + 'Description'
             reqspec = '\\' + key + 'Trace'
             component = '\\' + key + 'Trace'  # duplicate or set to '-'...?
-        notes = self.data[key][self.entryMap['notes']]
+        notes = self.data[key]['notes']
 
         if ver[0:2] == 'lo':
             sout = '\\' + dbTypes[self.dbtype][dbEM['texdef']] + '\{{}\}\{{}\}\{{}\}\{{}\}\{{}\}\n'.format(key, value, description, reqspec, component)
