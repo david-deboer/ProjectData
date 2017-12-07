@@ -23,12 +23,13 @@ class Data:
                sqlMap are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
                each db file has the following tables (dbtype, trace, type, updated)"""
 
+        # Shoujld make this a dictionary!
         self.entryMap = {'refName': 0,  # nocase, internally set to all lower
                          'other': 1,
                          'value': 2,
                          'description': 3,
-                         'reqspecTrace': 4,
-                         'componentTrace': 5,
+                         'reqspecTrace': 4,  # Should append the Traces last
+                         'componentTrace': 5,  # and derive them from databases.json
                          'interfaceTrace': 6,
                          'milestoneTrace': 7,
                          'taskTrace': 8,
@@ -366,7 +367,6 @@ class Data:
             notes = self.data[f][self.entryMap['notes']]
             print(refName, ':  ', dbdesc, ' [', value, ']')
             print('\t', status, ':  ', notes)
-        print('\nRemember columns:  handle, value, description, type, status, owners, notes')
         return str(fnd[0])
 
     def since(self, dstr):
@@ -558,12 +558,26 @@ class Data:
         badHandle = not handle.isalpha()
         if badHandle:
             print("Note that tex can't have any digits or non-alpha characters")
-            print('THIS VERSION DOESNT QUITE FIX IT!!!!!')
             useHandle = raw_input('Please try a new handle:  ')
             self.checkHandle(useHandle)
         else:
             useHandle = handle
         return useHandle
+
+    def makeHandle(self, refName):
+        if refName.isalpha():
+            return refName
+        r = {'1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five', '6': 'six',
+             '7': 'seven', '8': 'eight', '9': 'nine', '0': 'zero',
+             '-': 'dash', ':': '', '.': 'dot', ',': 'comma', '_': 'underscore'}
+        handle = ''
+        for c in refName:
+            if c in r.keys():
+                handle += r[c]
+            else:
+                handle += c
+        handle = self.checkHandle(handle)
+        return handle
 
     def _getRecordItems4Input(self, name):
         print('Fields for ' + name)
@@ -577,8 +591,6 @@ class Data:
                 continue
             cursor = 'Input ' + e + ':  '
             nv = raw_input(cursor)
-            if e == ' handle':
-                nv = self.checkHandle(nv)
             if len(nv) > 0:
                 field.append(e)
                 new_values.append(nv)
@@ -631,7 +643,8 @@ class Data:
         else:
             save2file = False
         for name in view:
-            handle = self.data[name][self.entryMap['handle']]
+            handle = self.makeHandle(self.refName)
+            other = self.data[name][self.entryMap['other']]
             value = self.data[name][self.entryMap['value']]
             description = self.data[name][self.entryMap['description']]
             dtype = self.data[name][self.entryMap['type']]
@@ -646,6 +659,7 @@ class Data:
             s += '\tType:        {}\n'.format(dtype)
             s += '\tStatus:      {}\n'.format(status)
             s += '\tNotes:       {}\n'.format(notes)
+            s += '\tOther:       {}\n'.format(other)
             s += '\tOwner:       '
             if owners:
                 for o in owners:
