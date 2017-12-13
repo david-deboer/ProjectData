@@ -69,23 +69,6 @@ def findall(db, field, names=None):
         if len(db.data[v][field]) > 0:
             print(v, db.data[v][field])
 
-
-name = 0
-handle = 1
-value = 2
-description = 3
-reqspecTrace = 4
-componentTrace = 5
-milestoneTrace = 6
-riskTrace = 7
-taskTrace = 8
-dtype = 9  # 'type' in entryMap
-owners = 10
-updated = 11
-notes = 12
-dbid = 13  # 'id' in entryMap
-status = 14
-
 print("""Read in:
     mi : milestones""")
 if NotOnlyMilestones:

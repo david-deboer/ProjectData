@@ -84,7 +84,7 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
         date_max = matplotlib.dates.date2num(dt.datetime(yrmax, mnmax, 28))
 
     # Initialise plot
-    fig = plt.figure()
+    fig = plt.figure(figsize=(9, 8), tight_layout=True)
     plt.axis(xmin=date_min, xmax=date_max)
     ax = fig.add_subplot(111)
     step = 0.5

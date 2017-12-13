@@ -13,20 +13,23 @@ import pd_utils
 
 
 class Data:
+    db_json_file = 'databases.json'
+    required_db_cols = ['refName', 'other', 'value', 'description', 'type', 'status', 'owners', 'notes', 'id']
+
     def __init__(self, dbtype, projectStart='14/09/01', verbose=True):
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
            a number of tex files.  See README and Architecture.dat
                dbtype is the type of database [milestones, reqspecs, interfaces, risks]
-               self.data is the "internal" database and self.db is the read-in sqlite3 database, the Maps convert between the self.data dictionary and the self.db list
-               entryMap are the common fields of the internal python database
-               entryHelp has information on the different fields per dbtype
+               self.data is the "internal" database and self.db is the read-in sqlite3 database
                sqlMap are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
                each db file has the following tables (dbtype, trace, type, updated)"""
-
-        self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt, 'noshow': self.noshow, 'file': self.fileout}
+        self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
+                             'noshow': self.noshow, 'file': self.fileout}
         self.show_cdf = True
         self.projectStart = projectStart
-        self.dbTypes = self.get_db_json('databases.json')
+        self.dbtype = dbtype
+        # Get db type data from json
+        self.dbTypes = self.get_db_json(self.db_json_file)
         self.dirName = self.dbTypes[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.dbTypes[dbtype]['dbfilename'])
         self.ganttables = []
@@ -36,7 +39,6 @@ class Data:
         if self.dbTypes[dbtype]['traceable'] == 'True':
             self.traceables.append(dbtype)
         self.caption = self.dbTypes[dbtype]['caption']
-        self.dbtype = dbtype
 
     def readData(self, inFile=None):
         """This reads in the sqlite3 database and puts it into db and data arrays.
@@ -63,6 +65,10 @@ class Data:
             else:
                 print('Sorry, ' + inFile + ' is not a valid database')
             return None
+        for r in self.required_db_cols:
+            if r not in sm.keys():
+                raise ValueError("{} column not found in {}.".format(r, inFile))
+
         dbconnect = sqlite3.connect(inFile)
         qdb = dbconnect.cursor()
 
@@ -86,12 +92,12 @@ class Data:
             # ...get a single entry
             entry = {}
             for v in sm.keys():
-                entry[v] = rec[sm[v]]  # This maps db -> internal
-            if 'status' in entry.keys() and entry['status'] is None:
+                entry[v] = rec[sm[v]]  # This makes the entry dictionary
+            if entry['status'] is None:
                 entry['status'] = 'No status'
-            if 'owners' in entry.keys() and entry['owners'] is not None:
+            if entry['owners'] is not None:
                 entry['owners'] = entry['owners'].split(',')  # make csv list a python list
-            # ...trace
+            # ...get trace information
             for traceType in self.traceables:
                 fieldName = traceType + 'Trace'
                 qdb_exec = "SELECT * FROM trace WHERE refName='{}' COLLATE NOCASE and traceType='{}' ORDER BY level".format(refName, traceType)
@@ -107,7 +113,7 @@ class Data:
             entry['updated'] = []
             for v in updates:
                 entry['updated'].append([v[1], v[2], v[3]])
-            # ...put in dictionary if not a duplicate
+            # ...put in data dictionary if not a duplicate
             if refName in data.keys():
                 existingEntry = data[refName]
                 print('name collision:  ' + refName)
@@ -118,7 +124,7 @@ class Data:
             else:
                 data[refName] = entry
             # ...give warning if not in 'allowedTypes' (but keep anyway)
-            if 'type' in entry.keys() and entry['type'] not in allowedTypes and entry['type'] is not None:
+            if entry['type'] not in allowedTypes and entry['type'] is not None:
                 print('Warning type not in allowed list: ' + entry['type'])
                 print('Allowed types are:')
                 print(allowedTypes)
@@ -151,9 +157,7 @@ class Data:
             self.data = data
             self.db = db
             self.sqlMap = sm
-            return len(data)
-        else:
-            return data
+        return data
 
     def get_db_json(self, dbjson='databases.json'):
         import json
@@ -176,7 +180,7 @@ class Data:
         return sqlMap
 
     def concatDat(self, dblist):
-        """This will concatentate the database list into a single database, which is useful to make WBS=TASK+MILESTONE"""
+        """This will concatentate the database list into a single database, which is used to make WBS=TASK+MILESTONE"""
         self.data = {}
         fullcount = 0
         overcount = 0
@@ -739,9 +743,9 @@ class Data:
             labels.append(label)
             value = str(self.data[v]['value'])
             status = str(self.data[v]['status']).lower().strip()
-            milepred = self.data[v]['milestoneTrace']
             predss = []
             if 'milestoneTrace' in self.data[v].keys():
+                milepred = self.data[v]['milestoneTrace']
                 ownlab = self.data[v]['owners']
                 if self.dbtype == 'milestone' or self.dbtype == 'wbs':
                     for x in milepred:
