@@ -25,6 +25,12 @@ class Data:
                each db file has the following tables (dbtype, trace, type, updated)"""
         self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                              'noshow': self.noshow, 'file': self.fileout}
+        self.ganttable_status = {'removed': 'w',  # see check_ganttable_status
+                                 'late': 'red',  # 'darkorange'
+                                 'moved': 'y',
+                                 'notyet': 'k',
+                                 'none': 'k',
+                                 'complete': 'b'}
         self.show_cdf = True
         self.projectStart = projectStart
         self.dbtype = dbtype
@@ -196,7 +202,8 @@ class Data:
         fullcount -= overcount
 
 # ##################################################################FIND##################################################################
-    def find(self, value, value2=None, dtype='all', field='value', owner='all', match='weak', howsort='value', display='gantt_o', returnList=False):
+    def find(self, value, value2=None, dtype='all', field='value', owner='all', match='weak', howsort='value', display='gantt_o',
+             only_late=False, return_list=False):
         """This will find records matching value1, except for milestones which looks between value1,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used [None]
@@ -206,7 +213,8 @@ class Data:
             match:  strength of match (weak, moderate, strong, verystrong) [weak]
             howsort:  field on which to sort display [value]
             display:  how to return data ('show'/'listing'/'gantt[_o]'/'file')  [gantt_o]
-            returnList: True/[False]"""
+            only_late:  if True, will only display late items [False]
+            return_list: if True, will return the list [False]"""
 
         pthru = ['any', 'all']
         if len(self.data) == 0:
@@ -246,6 +254,11 @@ class Data:
                     if timevalue >= value1time and timevalue <= value2time:
                         use_this_rec = True
                 if use_this_rec:
+                    if only_late:
+                        status = self.check_ganttable_status(self.data[dat]['status'], val2check)
+                        if status[0] != 'late':
+                            use_this_rec = False
+                if use_this_rec:
                     foundrec.append(dat)
         else:
             for dat in self.data.keys():
@@ -280,7 +293,7 @@ class Data:
             self.displayTypes[display](foundrec, howsort=None)
         else:
             print('No records found.')
-        if returnList:
+        if return_list:
             return foundrec
 
     def __searchfield(self, value, infield, match):
@@ -456,8 +469,9 @@ class Data:
             if updater is None:
                 updater = raw_input("Who is updating:  ")
             if upnote is None:
-                upnote = raw_input("Update note:  ")
-            qv = (refName, dt, updater, upnote, new_update)
+                upnote = raw_input("Update note to append previous record notes:  ")
+            full_upnote = upnote + ' :: <Previous note: ' + changing[0][self.sqlMap['notes']] + '>'
+            qv = (refName, dt, updater, full_upnote, new_update)
             qdb.execute(qdb_exec, qv)
             db.commit()
             self.checkTrace(refName)
@@ -627,7 +641,7 @@ class Data:
         else:
             save2file = False
         for name in view:
-            handle = self.makeHandle(self.refName)
+            handle = self.makeHandle(name)
             other = self.data[name]['other']
             value = self.data[name]['value']
             description = self.data[name]['description']
@@ -733,10 +747,6 @@ class Data:
         tstat = []
         pred = []
         owner = []
-        removedColor = 'w'
-        lateColor = 'red'  # 'darkorange'
-        movedColor = 'y'
-        notyetColor = 'k'
         for v in view:
             label = str(self.data[v]['description'])[0:labelLength]
             label = pd_gantt.check_gantt_labels(label, labels)
@@ -760,32 +770,8 @@ class Data:
             pred.append(predss)
             dates.append(value)
             owner.append(ownlab)
-
-            tcode = notyetColor
-            if '-' in value:
-                tcode = notyetColor
-            else:  # Get milestone marker color code
-                valuetime = time.mktime(time.strptime(value, '%y/%m/%d'))
-                now = time.time()
-                status = status.split()
-                if len(status) > 0:
-                    if status[0].lower() == 'removed':  # no longer used
-                        tcode = removedColor
-                    elif now > valuetime and status[0].lower() != 'complete':  # it's late
-                        tcode = lateColor
-                    elif now > valuetime and status[0].lower() == 'complete':
-                        tcode = 'b'
-                        if len(status) > 1:
-                            try:
-                                lag = int(status[1])
-                            except ValueError:
-                                lag = 0
-                            tcode = self._lag2rgb(lag)
-                    elif status[0].lower() == 'moved':  # date was moved
-                        tcode = movedColor
-                    else:
-                        tcode = notyetColor
-            tstat.append(tcode)
+            status_return = self.check_ganttable_status(status, value)
+            tstat.append(status_return[1])
         if plotPredecessors:
             pass
         else:
@@ -797,6 +783,40 @@ class Data:
         if self.show_cdf:
             self.colorBar()
         return view
+
+    def check_ganttable_status(self, status, value_date):
+        if status is None or status.lower() == 'no status':
+            status = 'none'
+        status = status.lower().split()
+        status_code = status[0]
+        tcode = self.ganttable_status['none']
+        if status_code in self.ganttable_status.keys():
+            tcode = self.ganttable_status[status_code]
+        if status_code == 'removed':
+            return (status_code, tcode)
+
+        if '-' in value_date:
+            value_date = value_data.split('-')[-1]
+        valuetime = time.mktime(time.strptime(value_date, '%y/%m/%d'))
+        now = time.time()
+
+        lag = 0.0
+        if len(status) == 2:
+            try:
+                statustime = time.mktime(time.strptime(status[1], '%y/%m/%d'))
+                lag = (statustime - valuetime) / 3600.0 / 24.0
+                # Interpreted as "completed at X" or "moved to X"
+                if status_code == 'complete' or status_code == 'moved':
+                    valuetime = statustime
+            except ValueError:
+                lag = float(status[1])
+
+        if now > valuetime and status_code != 'complete':
+            status_code = 'late'
+            tcode = self.ganttable_status[status_code]
+        elif status_code == 'complete':
+            tcode = self._lag2rgb(lag)
+        return (status_code, tcode)
 
     def colorBar(self):
         fff = plt.figure('ColorBar')
