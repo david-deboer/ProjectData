@@ -572,6 +572,8 @@ class Data:
         for c in refName:
             if c in r.keys():
                 handle += r[c]
+            elif not c.isalpha():
+                handle += 'X'
             else:
                 handle += c
         handle = self.checkHandle(handle)
@@ -633,7 +635,7 @@ class Data:
         view = self._getview(view, howsort)
         return view
 
-    def show(self, view='all', output='stdout', howsort='refName', showTrace=True):
+    def show(self, view='all', output='stdout', howsort='refName', showTrace=True, requested_dtype='all'):
         view = self._getview(view, howsort)
         if output is not 'stdout':
             save2file = True
@@ -646,6 +648,10 @@ class Data:
             value = self.data[name]['value']
             description = self.data[name]['description']
             dtype = self.data[name]['type']
+            if requested_dtype.lower() == 'all' or requested_dtype.lower() == dtype.lower():
+                pass
+            else:
+                continue
             owners = self.data[name]['owners']
             updated = self.data[name]['updated']
             notes = self.data[name]['notes']

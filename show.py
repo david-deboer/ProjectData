@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+from __future__ import absolute_import, division, print_function
+import code_path
+base_code_path = code_path.set('ProjectData')
 import argparse
 import Arch_class
 import Data_class
@@ -11,16 +14,15 @@ o.add_argument('-s', '--howsort', help='what entryMap field to use to sort', def
 args = o.parse_args()
 
 
-dtype = args.dtype[0:2].lower()
+dbtype = args.dbtype[0:2].lower()
 dtypeDict = {'mi': 'milestone', 're': 'reqspec', 'in': 'interface', 'ri': 'risk', 'ar': 'architecture'}
 
-if dtype == 'ar':
-    print 'Architecture'
+if dbtype == 'ar':
+    print('Architecture')
     d = Arch_class.Data()
 else:
     d = Data_class.Data(dtypeDict[dbtype])
-print '----------------Reading in--------------------'
+print('----------------Reading in--------------------')
 d.readData()
-print
-print '----------------Listing-----------------------'
-d.show(args.view, args.howsort)
+print('\n----------------Listing-----------------------\n')
+d.show(howsort=args.howsort, requested_dtype=args.view)
