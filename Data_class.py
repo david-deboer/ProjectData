@@ -31,7 +31,6 @@ class Data:
                                  'notyet': 'k',
                                  'none': 'k',
                                  'complete': 'b'}
-        self.show_cdf = True
         self.projectStart = projectStart
         self.dbtype = dbtype
         # Get db type data from json
@@ -45,6 +44,31 @@ class Data:
         if self.dbTypes[dbtype]['traceable'] == 'True':
             self.traceables.append(dbtype)
         self.caption = self.dbTypes[dbtype]['caption']
+        self.init_state_variables()
+        self.show_state_var()
+
+    def init_state_variables(self):
+        self.state_vars = ['show_cdf', 'description_length', 'gantt_label_to_use',
+                           'display_howsort', 'plot_predecessors', 'show_dtype', 'show_trace']
+        self.show_cdf = True
+        self.description_length = 50
+        self.gantt_label_to_use = 'description'
+        self.display_howsort = 'value'
+        self.plot_predecessors = True
+        self.show_dtype = 'all'
+        self.show_trace = True
+
+    def set_state_var(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            if k in self.state_vars:
+                setattr(self, k, v)
+            else:
+                print('state_var [{}] not found.'.format(k))
+
+    def show_state_var(self):
+        print("State variables")
+        for k in self.state_vars:
+            print('\t{}:  {}'.format(k, getattr(self, k)))
 
     def readData(self, inFile=None):
         """This reads in the sqlite3 database and puts it into db and data arrays.
@@ -202,8 +226,8 @@ class Data:
         fullcount -= overcount
 
 # ##################################################################FIND##################################################################
-    def find(self, value, value2=None, dtype='all', field='value', owner='all', match='weak', howsort='value', display='gantt_o',
-             only_late=False, return_list=False):
+    def find(self, value, value2=None, dtype='all', field='value', owner='all',
+             match='weak', howsort='value', display='gantt_o', only_late=False, return_list=False):
         """This will find records matching value1, except for milestones which looks between value1,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used [None]
@@ -282,7 +306,7 @@ class Data:
                     if foundMatch:
                         foundrec.append(dat)
         if len(foundrec):
-            foundrec = self._getview(foundrec, howsort)
+            foundrec = self._getview(foundrec, self.display_howsort)
             if display == 'gantt_o':
                 self.owner_gantt_labels = True
                 display = 'gantt'
@@ -290,7 +314,7 @@ class Data:
                 self.owner_gantt_labels = False
             if display not in self.displayTypes.keys():
                 display = 'listing'
-            self.displayTypes[display](foundrec, howsort=None)
+            self.displayTypes[display](foundrec)
         else:
             print('No records found.')
         if return_list:
@@ -616,6 +640,8 @@ class Data:
         print
 
     def _getview(self, view, howsort):
+        if howsort not in self.required_db_cols:
+            print("{} sort option not valid.")
         if view == 'all':
             view = self.data.keys()
         if type(view) is not list:
@@ -630,13 +656,13 @@ class Data:
                     thesekeys.append(key)
         return thesekeys
 
-    def noshow(self, view='all', howsort='name'):
+    def noshow(self, view='all'):
         """This just returns the keys to view but doesn't display anything"""
-        view = self._getview(view, howsort)
+        view = self._getview(view, self.display_howsort)
         return view
 
-    def show(self, view='all', output='stdout', howsort='refName', showTrace=True, requested_dtype='all'):
-        view = self._getview(view, howsort)
+    def show(self, view='all', output='stdout'):
+        view = self._getview(view, self.display_howsort)
         if output is not 'stdout':
             save2file = True
             fp = open(output, 'w')
@@ -648,7 +674,7 @@ class Data:
             value = self.data[name]['value']
             description = self.data[name]['description']
             dtype = self.data[name]['type']
-            if requested_dtype.lower() == 'all' or requested_dtype.lower() == dtype.lower():
+            if self.show_dtype.lower() == 'all' or self.show_dtype.lower() == dtype.lower():
                 pass
             else:
                 continue
@@ -663,7 +689,8 @@ class Data:
             s += '\tType:        {}\n'.format(dtype)
             s += '\tStatus:      {}\n'.format(status)
             s += '\tNotes:       {}\n'.format(notes)
-            s += '\tOther:       {}\n'.format(other)
+            if other:
+                s += '\tOther:       {}\n'.format(other)
             s += '\tOwner:       '
             if owners:
                 for o in owners:
@@ -678,7 +705,7 @@ class Data:
 # #                rsdata = self.readData(inFile)
 # #            else:
 # #                rsdata = self.data
-            if len(self.traceables) and showTrace:
+            if len(self.traceables) and self.show_trace:
                 for traceType in self.traceables:
                     fieldName = traceType + 'Trace'
                     s += '\t' + traceType + ' trace\n'
@@ -706,55 +733,54 @@ class Data:
             fp.close()
         return view
 
-    def fileout(self, view='all', howsort='value', output_filename='fileout.txt'):
-        """Provides a short listing of the given records (default is all).  If 'short' is True, it truncates fields per the "spaces", otherwise not"""
-        view = self._getview(view, howsort)
+    def fileout(self, view='all', output_filename='fileout.txt'):
+        view = self._getview(view, self.display_howsort)
         output_file = open(output_filename, 'w')
         for key in view:
             desc = self.data[key]['description']
             val = self.data[key]['value']
             stat = self.data[key]['status']
-            owners = self.data[key]['owners']
-            oss = '({})'.format(owners[0])
-            s = '{} {:8s} {}:  {}\n'.format(val, oss, desc, stat)
+            owners = pd_utils.stringify(self.data[key]['owners'])
+            s = '{} ({:8s}) {}:  {}   ({})\n'.format(val, owners, desc, stat, key)
             output_file.write(s)
         print('Writing file to ', output_filename)
         output_file.close()
         return view
 
-    def listing(self, view='all', howsort='value', short=True, nameSpace=40, descSpace=50, statSpace=9):
-        """Provides a short listing of the given records (default is all).  If 'short' is True, it truncates fields per the "spaces", otherwise not"""
-        view = self._getview(view, howsort)
+    def listing(self, view='all'):
+        """
+        Provides a short listing of the given records (default is all) in fixed widths.
+        You can set the description_length via set_description_length(X)
+        """
+        desc_len = str(self.description_length) + '.' + str(self.description_length)
+        view = self._getview(view, self.display_howsort)
         for key in view:
             desc = self.data[key]['description']
             val = self.data[key]['value']
             stat = self.data[key]['status']
-            owners = self.data[key]['owners']
-            namepad = nameSpace - len(key)
-            statpad = statSpace - len(stat)
-            if short:
-                sss = stat[0:statSpace] + statpad * ' '
-                kss = key + namepad * ' '
-                dss = desc[0:descSpace]
-                print('[{}] ({}) \t {} ({})'.format(val, owners[0], desc, key))
-            else:
-                print(key + namepad * ' ' + ' [' + val + '] ' + desc + '  ==> ' + stat)
-        print
+            owners = pd_utils.stringify(self.data[key]['owners'])
+            print('{:10.10} {:12.12} \t {:{d_l}} ({})'.format(val, owners, desc, key, d_l=desc_len))
         return view
 
-    def gantt(self, view='all', howsort='value', plotPredecessors=True, labelLength=46):
-        view = self._getview(view, howsort)
+    def gantt(self, view='all'):
+        view = self._getview(view, self.display_howsort)
         if self.dbtype not in self.ganttables:
             print('You can only gantt:  ', self.ganttables)
         if type(view) != list:
             view = [view]
+        if self.gantt_label_to_use not in self.required_db_cols:
+            print("{} label not found to use.".format(self.gantt_label_to_use))
+            return
+        label_prec = 's'
+        if self.gantt_label_to_use == 'description':
+            label_prec = '.' + str(self.description_length)
         labels = []
         dates = []
         tstat = []
         pred = []
         owner = []
         for v in view:
-            label = str(self.data[v]['description'])[0:labelLength]
+            label = '{:{prec}}'.format(str(self.data[v][self.gantt_label_to_use]), prec=label_prec)
             label = pd_gantt.check_gantt_labels(label, labels)
             labels.append(label)
             value = str(self.data[v]['value'])
@@ -778,7 +804,7 @@ class Data:
             owner.append(ownlab)
             status_return = self.check_ganttable_status(status, value)
             tstat.append(status_return[1])
-        if plotPredecessors:
+        if self.plot_predecessors:
             pass
         else:
             pred = None

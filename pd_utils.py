@@ -30,3 +30,13 @@ def sortByValue(inDict):
     for s in sind:
         sk.append(ind[s])
     return sk
+
+
+def stringify(X):
+    if X is None:
+        return None
+    if isinstance(X, str):
+        return X
+    if isinstance(X, list):
+        return ','.join(X)
+    return str(X)
