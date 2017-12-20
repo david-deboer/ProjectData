@@ -120,7 +120,7 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
     if other_labels is not None:
         for i in range(0, len(ylabels)):
             start_date, end_date = task_dates[ylabels[i]]
-            plt.text(end_date + 5, i * step + ymin, str(other_labels[i][0]))
+            plt.text(end_date + 5, i * step + ymin, str(other_labels[i]))
 
     # Plot predecessors
     if predecessors is not None:

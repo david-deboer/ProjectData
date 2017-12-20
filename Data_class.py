@@ -61,7 +61,7 @@ class Data:
         self.show_dtype = 'all'
         self.show_trace = True
 
-    def set_state_var(self, **kwargs):
+    def set_state(self, **kwargs):
         for k, v in kwargs.iteritems():
             if k in self.state_vars:
                 setattr(self, k, v)
@@ -345,11 +345,11 @@ class Data:
         if returnList:
             return unique_values
 
-    def getref(self, desc):
+    def getref(self, v, search='description'):
         fndk = []
-        d = desc.lower()
+        d = v.lower()
         for dat in self.data.keys():
-            dbdesc = self.data[dat]['description']
+            dbdesc = self.data[dat][search]
             if dbdesc is not None:
                 if d in dbdesc.lower():
                     fndk.append(dat)
@@ -721,6 +721,10 @@ class Data:
             value = str(self.data[v]['value'])
             status = str(self.data[v]['status']).lower().strip()
             othlab = self.data[v][self.other_gantt_label]
+            if othlab is None:
+                othlab = ' '
+            else:
+                othlab = pd_utils.stringify(othlab)
             predss = []
             if 'milestoneTrace' in self.data[v].keys():
                 milepred = self.data[v]['milestoneTrace']
