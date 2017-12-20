@@ -14,14 +14,14 @@ import pd_utils
 
 class Data:
     db_json_file = 'databases.json'
-    required_db_cols = ['refName', 'other', 'value', 'description', 'type', 'status', 'owners', 'notes', 'id']
+    required_db_cols = ['refname', 'value', 'description', 'type', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
 
     def __init__(self, dbtype, projectStart='14/09/01', verbose=True):
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
            a number of tex files.  See README and Architecture.dat
                dbtype is the type of database [milestones, reqspecs, interfaces, risks]
                self.data is the "internal" database and self.db is the read-in sqlite3 database
-               sqlMap are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
+               sql_map are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
                each db file has the following tables (dbtype, trace, type, updated)"""
         self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                              'noshow': self.noshow, 'file': self.fileout}
@@ -34,7 +34,7 @@ class Data:
         self.projectStart = projectStart
         self.dbtype = dbtype
         # Get db type data from json
-        self.dbTypes = self.get_db_json(self.db_json_file)
+        self.dbTypes = pd_utils.get_db_json(self.db_json_file)
         self.dirName = self.dbTypes[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.dbTypes[dbtype]['dbfilename'])
         self.ganttables = []
@@ -46,13 +46,16 @@ class Data:
         self.caption = self.dbTypes[dbtype]['caption']
         self.init_state_variables()
         self.show_state_var()
+        self.cache_lower_data_keys = []
 
     def init_state_variables(self):
-        self.state_vars = ['show_cdf', 'description_length', 'gantt_label_to_use',
-                           'display_howsort', 'plot_predecessors', 'show_dtype', 'show_trace']
+        self.state_vars = ['show_cdf', 'description_length', 'gantt_label_to_use', 'other_gantt_label',
+                           'display_howsort', 'plot_predecessors', 'show_dtype', 'show_trace', 'show_color_bar']
         self.show_cdf = True
+        self.show_color_bar = True
         self.description_length = 50
         self.gantt_label_to_use = 'description'
+        self.other_gantt_label = 'owner'
         self.display_howsort = 'value'
         self.plot_predecessors = True
         self.show_dtype = 'all'
@@ -73,7 +76,7 @@ class Data:
     def readData(self, inFile=None):
         """This reads in the sqlite3 database and puts it into db and data arrays.
            If inFile==None:
-                it reads self.inFile and makes the data, db and sqlMap arrays 'self':  this is the 'normal' way,
+                it reads self.inFile and makes the data, db and sql_map arrays 'self':  this is the 'normal' way,
            if inFile is a valid db file:
                 then it returns that data, not changing self (to handle pulling trace values etc out)
            OTHER RANDOM SQLITE3 NOTES:
@@ -88,7 +91,7 @@ class Data:
             selfVersion = False
 
         try:
-            sm = self.getSQLmap(inFile)
+            sm = self.get_sql_map(inFile)
         except IOError:
             if '+' in inFile:
                 print(inFile + ' is a concatenated database -- read in and concatDat')
@@ -99,6 +102,7 @@ class Data:
             if r not in sm.keys():
                 raise ValueError("{} column not found in {}.".format(r, inFile))
 
+        self.sql_map = sm
         dbconnect = sqlite3.connect(inFile)
         qdb = dbconnect.cursor()
 
@@ -109,6 +113,7 @@ class Data:
         allowedTypes = []
         for t in db:
             allowedTypes.append(str(t[0]))
+        self.allowedTypes = allowedTypes
 
         # get all records in dbtype database table
         qdb_exec = "SELECT * FROM records ORDER BY id"
@@ -117,67 +122,70 @@ class Data:
 
         # put database records into data dictionary (records/trace tables)
         data = {}
+        self.cache_lower_data_keys = []
         for rec in db:
-            refName = rec[sm['refName']].lower()
+            refname = rec[sm['refname']]
             # ...get a single entry
             entry = {}
             for v in sm.keys():
                 entry[v] = rec[sm[v]]  # This makes the entry dictionary
             if entry['status'] is None:
                 entry['status'] = 'No status'
-            if entry['owners'] is not None:
-                entry['owners'] = entry['owners'].split(',')  # make csv list a python list
+            if entry['owner'] is not None:
+                entry['owner'] = entry['owner'].split(',')  # make csv list a python list
             # ...get trace information
             for traceType in self.traceables:
                 fieldName = traceType + 'Trace'
-                qdb_exec = "SELECT * FROM trace WHERE refName='{}' COLLATE NOCASE and traceType='{}' ORDER BY level".format(refName, traceType)
+                qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and traceType='{}' ORDER BY level".format(refname, traceType)
                 qdb.execute(qdb_exec)
                 trace = qdb.fetchall()
                 entry[fieldName] = []
                 for v in trace:
                     entry[fieldName].append(v[1])
             # ...read in updated table
-            qdb_exec = "SELECT * FROM updated WHERE refName='{}' COLLATE NOCASE ORDER BY level".format(refName)
+            qdb_exec = "SELECT * FROM updated WHERE refname='{}' COLLATE NOCASE ORDER BY level".format(refname)
             qdb.execute(qdb_exec)
             updates = qdb.fetchall()
             entry['updated'] = []
             for v in updates:
                 entry['updated'].append([v[1], v[2], v[3]])
             # ...put in data dictionary if not a duplicate
-            if refName in data.keys():
-                existingEntry = data[refName]
-                print('name collision:  ' + refName)
+            if refname.lower() in self.cache_lower_data_keys:
+                refname = self.find_matching_refname(refname)
+                existingEntry = data[refname]
+                print('name collision:  ' + refname)
                 print('--> not adding to data')
                 print('[\n', existingEntry)
                 print('\n]\n[\n', entry)
                 print('\n]')
             else:
-                data[refName] = entry
+                data[refname] = entry
+                self.cache_lower_data_keys.append(refname.lower())
             # ...give warning if not in 'allowedTypes' (but keep anyway)
             if entry['type'] not in allowedTypes and entry['type'] is not None:
-                print('Warning type not in allowed list: ' + entry['type'])
+                print('Warning type not in allowed list for {}: {}'.format(refname, entry['type']))
                 print('Allowed types are:')
                 print(allowedTypes)
 
-        # check Trace table to ensure that all refNames are valid
+        # check Trace table to ensure that all refnames are valid
         for tracetype in self.traceables:
             fieldName = traceType + 'Trace'
-            qdb_exec = "SELECT * FROM trace where traceType='{}'".format(traceType)
+            qdb_exec = "SELECT * FROM trace where traceType='{}' COLLATE NOCASE".format(traceType)
             qdb.execute(qdb_exec)
             trace = qdb.fetchall()
             for t in trace:
-                t_refName = t[0].lower()
-                if t_refName not in data.keys():
+                t_refname = t[0]
+                if t_refname.lower() not in self.cache_lower_data_keys:
                     print('{} not in data records:  {}'.format(fieldName, t[0]))
-        # check Updated table to ensure that all refNames are valid
+        # check Updated table to ensure that all refnames are valid
         qdb_exec = "SELECT * FROM updated"
         qdb.execute(qdb_exec)
         updates = qdb.fetchall()
         already_found = []
         for u in updates:
-            u_refName = u[0].lower()
-            if u_refName not in data.keys() and u_refName not in already_found:
-                already_found.append(u_refName)
+            u_refname = u[0]
+            if u_refname.lower() not in self.cache_lower_data_keys and u_refname not in already_found:
+                already_found.append(u_refname)
                 print('updated not in data records:  ', u[0])
         dbconnect.close()
         if 'projectstart' in data.keys():
@@ -186,28 +194,30 @@ class Data:
         if selfVersion:
             self.data = data
             self.db = db
-            self.sqlMap = sm
+            self.sql_map = sm
         return data
 
-    def get_db_json(self, dbjson='databases.json'):
-        import json
-        with open(dbjson, 'r') as f:
-            x = json.load(f)
-        return x
-
-    def getSQLmap(self, inFile):
+    def get_sql_map(self, inFile=None, tables=['records'], show_detail=False):
+        if inFile is None:
+            inFile = self.inFile
         if os.path.exists(inFile):
             dbconnect = sqlite3.connect(inFile)
         else:
             print(inFile + ' not found')
             return 0
         qdb = dbconnect.cursor()
-        qdb.execute("PRAGMA table_info(records)")
-        sqlMap = {}
-        for t in qdb.fetchall():
-            sqlMap[str(t[1])] = t[0]
+        sql_map = {}
+        for tbl in tables:
+            qdb.execute("PRAGMA table_info({})".format(tbl))
+            if show_detail:
+                print("Table name: {}".format(tbl))
+            for t in qdb.fetchall():
+                if show_detail:
+                    print('\t', t)
+                if tbl == 'records':
+                    sql_map[str(t[1])] = t[0]
         dbconnect.close()
-        return sqlMap
+        return sql_map
 
     def concatDat(self, dblist):
         """This will concatentate the database list into a single database, which is used to make WBS=TASK+MILESTONE"""
@@ -227,7 +237,7 @@ class Data:
 
 # ##################################################################FIND##################################################################
     def find(self, value, value2=None, dtype='all', field='value', owner='all',
-             match='weak', howsort='value', display='gantt_o', only_late=False, return_list=False):
+             match='weak', howsort='value', display='gantt', only_late=False, return_list=False):
         """This will find records matching value1, except for milestones which looks between value1,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used [None]
@@ -236,7 +246,7 @@ class Data:
             owner:  string for one owner (can use 'any'/'all')
             match:  strength of match (weak, moderate, strong, verystrong) [weak]
             howsort:  field on which to sort display [value]
-            display:  how to return data ('show'/'listing'/'gantt[_o]'/'file')  [gantt_o]
+            display:  how to return data ('show'/'listing'/'gantt'/'file')  [gantt]
             only_late:  if True, will only display late items [False]
             return_list: if True, will return the list [False]"""
 
@@ -258,11 +268,11 @@ class Data:
                 return 'Incorrect ganttable value term'
             for dat in self.data.keys():
                 etype = str(self.data[dat]['type']).lower()  # dtype of entry
-                eowners = (self.data[dat]['owners'] if self.data[dat]['owners'] is not None else [])
+                eowner = (self.data[dat]['owner'] if self.data[dat]['owner'] is not None else [])
                 use_this_rec = False
                 # Check stuff
                 dtype_check = (dtype.lower() in pthru) or (dtype.lower() == etype) or (etype.lower() == 'na')
-                owner_check = (owner.lower() in pthru) or (owner in eowners)
+                owner_check = (owner.lower() in pthru) or (owner in eowner)
                 field_check = self.data[dat][field] is not None
                 if dtype_check and owner_check and field_check:
                     if '-' in self.data[dat][field]:
@@ -287,19 +297,19 @@ class Data:
         else:
             for dat in self.data.keys():
                 foundType = False
-                if dtype.lower() in ['any', 'all'] and self.data[dat]['type'].lower() != 'na':
+                if dtype.lower() in pthru and self.data[dat]['type'].lower() != 'na':
                     foundType = True
                 elif dtype.lower() in self.data[dat]['type'].lower():
                     foundType = True
                 if foundType:
                     foundMatch = False
-                    if field.lower() in ['any', 'all']:
+                    if field.lower() in pthru:
                         for fff in self.data[dat].keys():
-                            foundMatch = self.__searchfield(value, self.data[dat][fff], match)
+                            foundMatch = pd_utils.searchfield(value, self.data[dat][fff], match)
                             if foundMatch:
                                 break
                     elif field in self.data[dat].keys():
-                        foundMatch = self.__searchfield(value, self.data[dat][field], match)
+                        foundMatch = pd_utils.searchfield(value, self.data[dat][field], match)
                     else:
                         print('Invalid field for search')
                         return
@@ -307,11 +317,6 @@ class Data:
                         foundrec.append(dat)
         if len(foundrec):
             foundrec = self._getview(foundrec, self.display_howsort)
-            if display == 'gantt_o':
-                self.owner_gantt_labels = True
-                display = 'gantt'
-            elif display == 'gantt':
-                self.owner_gantt_labels = False
             if display not in self.displayTypes.keys():
                 display = 'listing'
             self.displayTypes[display](foundrec)
@@ -319,36 +324,6 @@ class Data:
             print('No records found.')
         if return_list:
             return foundrec
-
-    def __searchfield(self, value, infield, match):
-        foundMatch = False
-        if type(infield) == list:
-            foundMatch = self.__searchlist(value, infield, match)
-        elif type(infield) == str or type(infield) == unicode and type(value) == str:
-            value = value.strip()
-            infield = infield.strip()
-            if match == 'weak':
-                foundMatch = value.lower() in infield.lower()
-            elif match == 'moderate':
-                foundMatch = value in infield
-            elif match == 'strong':
-                foundMatch = value.lower() == infield.lower()
-            elif match == 'verystrong':
-                foundMatch = value == infield
-            else:  # default is weak
-                foundMatch = value.lower() in infield.lower()
-        else:
-            foundMatch = value == infield
-        return foundMatch
-
-    def __searchlist(self, value, inlist, match):
-        foundMatch = False
-        for v in inlist:
-            if type(v) == list:
-                foundMatch = self.__searchlist(value, v, match)
-            else:
-                foundMatch = self.__searchfield(value, v, match)
-        return foundMatch
 
     def list_unique(self, field, returnList=False):
         unique_values = []
@@ -370,7 +345,7 @@ class Data:
         if returnList:
             return unique_values
 
-    def findref(self, desc):
+    def getref(self, desc):
         fndk = []
         d = desc.lower()
         for dat in self.data.keys():
@@ -378,78 +353,89 @@ class Data:
             if dbdesc is not None:
                 if d in dbdesc.lower():
                     fndk.append(dat)
-        fnd = []
-        for f in fndk:
-            refName = self.data[f]['refName']
-            fnd.append(refName)
-            dbdesc = self.data[f]['description']
-            value = self.data[f]['value']
-            status = self.data[f]['status']
-            notes = self.data[f]['notes']
-            print(refName, ':  ', dbdesc, ' [', value, ']')
-            print('\t', status, ':  ', notes)
-        return str(fnd[0])
+        if len(fndk) == 1:
+            return fndk[0]
+        else:
+            print("{} found (should be 1).".format(len(fndk)))
+            for f in fndk:
+                refname = self.data[f]['refname']
+                dbdesc = self.data[f]['description']
+                value = self.data[f]['value']
+                status = self.data[f]['status']
+                notes = self.data[f]['notes']
+                print(refname, ':  ', dbdesc, ' [', value, ']')
+                print('\t', status, ':  ', notes)
+        return None
 
     def since(self, dstr):
         dbconnect = sqlite3.connect(self.inFile)
         qdb = dbconnect.cursor()
-        qdb_exec = "SELECT refName FROM updated WHERE updated>'{}'".format(dstr)
+        qdb_exec = "SELECT refname FROM updated WHERE updated>'{}'".format(dstr)
         qdb.execute(qdb_exec)
         updates = qdb.fetchall()
-        refNames = []
+        refnames = []
         for u in updates:
             print(u)
-            refNames.append(u[0].lower())
-        self.show(refNames, showTrace=False)
+            refnames.append(u[0].lower())
+        self.show(refnames, showTrace=False)
+
+    def find_matching_refname(self, refname):
+        """
+        This takes a refname of unknown capitalization and finds the correct refname.
+        Returns None if none are found.
+        """
+        if refname in self.data.keys():
+            return refname
+        if refname.lower() in self.cache_lower_data_keys:
+            for rn in self.data.keys():
+                if refname.lower() == rn.lower():
+                    return rn
+        return None
 
 # ##################################################################UPDATE##################################################################
-    def update(self, refName, field=None, new_value=None, dt=None, updater=None, upnote=None):
+    def update(self, refname, field, new_value, dt=None, updater=None, upnote=None):
         """Updates a record field as well as the updated db, adds if not present
-            name is the refName of the record, if not present a new entry is made
+            name is the refname of the record, if not present a new entry is made
             field is the field(s) (can be a list) to be updated
             new_value is the new value(s) (should match field)
             dt is the YY/MM/DD of updated time (default is now)
             updater is the name of the updater (default is to query)
             upnote is the note to be included in updated record (default is to query or 'initial' on creation)"""
         self.readData()
-        if field is None:
-            field, new_value = self._getRecordItems4Input(refName)
-            if field is False:
-                return False
-        if type(field) is not list:
-            field = [field]
-        if type(new_value) is not list:
-            new_value = [new_value]
+        field = pd_utils.listify(field)
+        new_value = pd_utils.listify(new_value)  # Beware of extra commas!!!
         if len(field) != len(new_value):
             print('Number of fields and values does not match')
             print('==> returning without update')
             return False
-        if 'refName' in field and field[-1] != 'refName':
-            print('refName should be last field changed - or outcome may not be what is desired')
+        if 'refname' in field and field[-1] != 'refname':
+            print('refname should be last field changed - or outcome may not be what is desired')
             print('==> returning without update')
             return False
         db = sqlite3.connect(self.inFile)
         qdb = db.cursor()
-        qdb.execute("SELECT * FROM records WHERE refName='{}'".format(refName))
+        qdb.execute("SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(refname))
         changing = qdb.fetchall()
         if len(changing) > 1:
-            print('Duplicated refName in ' + self.inFile + ' (' + refName + ')')
+            print('Duplicated refname in ' + self.inFile + ' (' + refname + ')')
             print('==> returning without update, so fix that!')
             db.close()
             return False
         changed = False
-        if len(changing) == 0:
-            print('Adding new entry ' + refName)
+        if not len(changing):
+            print('Adding new entry ' + refname)
             qdb.execute("SELECT * FROM records ORDER BY id")
             cnt = qdb.fetchall()
-            new_id = cnt[-1][self.sqlMap['id']] + 1  # works since we SORT BY id
+            new_id = cnt[-1][self.sql_map['id']] + 1  # works since we SORT BY id
             field.append('id')
             new_value.append(new_id)
-            qdb.execute("INSERT INTO records(refName) VALUES (?)", (refName,))
+            qdb.execute("INSERT INTO records(refname) VALUES (?)", (refname,))
             changed = True
             if upnote is None:
                 upnote = 'Initial'
             db.commit()
+        else:
+            refname = changing[0][self.sql_map['refname']]
         for i, fld in enumerate(field):
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
@@ -458,19 +444,19 @@ class Data:
                 else:
                     trlist = [new_value[i]]
                 for tr in trlist:
-                    print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refName)
-                    qf = (refName, tr, 0, ttype)
-                    qdb.execute("INSERT INTO trace(refName,traceName,level,traceType) VALUES (?,?,?,?)", qf)
-            elif fld not in self.sqlMap.keys():
+                    print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refname)
+                    qf = (refname, tr, 0, ttype)
+                    qdb.execute("INSERT INTO trace(refname,tracename,level,traceType) VALUES (?,?,?,?)", qf)
+            elif fld not in self.sql_map.keys():
                 print('{} is not a database field'.format(fld))
-            elif fld == 'refName':
-                print('\tChanging name {} to {}'.format(refName, new_value[i]))
+            elif fld == 'refname':
+                print('\tChanging name {} to {}'.format(refname, new_value[i]))
                 print("==> I'm not entirely sure this is comprehensive yet or not")
-                if self.changeName(refName, new_value[i]):
+                if self.changeName(refname, new_value[i]):
                     changed = True
             else:
-                print('\tChanging {}.{} to {}'.format(refName, fld, new_value[i]))
-                qdb_exec = "UPDATE records SET {}='{}' WHERE refName='{}'".format(fld, new_value[i], refName)
+                print('\tChanging {}.{} to {}'.format(refname, fld, new_value[i]))
+                qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value[i], refname)
                 qdb.execute(qdb_exec)
                 changed = True
         if changed:  # Need to update 'updated' database
@@ -479,7 +465,7 @@ class Data:
             self.readData()
             db = sqlite3.connect(self.inFile)
             qdb = db.cursor()
-            qdb_exec = "SELECT * FROM updated where refName='{}' ORDER BY level".format(refName)
+            qdb_exec = "SELECT * FROM updated where refname='{}' COLLATE NOCASE ORDER BY level".format(refname)
             qdb.execute(qdb_exec)
             upd = qdb.fetchall()
             try:
@@ -494,29 +480,29 @@ class Data:
                 updater = raw_input("Who is updating:  ")
             if upnote is None:
                 upnote = raw_input("Update note to append previous record notes:  ")
-            full_upnote = upnote + ' :: <Previous note: ' + changing[0][self.sqlMap['notes']] + '>'
-            qv = (refName, dt, updater, full_upnote, new_update)
+            full_upnote = upnote + ' :: <Previous note: ' + changing[0][self.sql_map['notes']] + '>'
+            qv = (refname, dt, updater, full_upnote, new_update)
             qdb.execute(qdb_exec, qv)
             db.commit()
-            self.checkTrace(refName)
+            self.checkTrace(refname)
         db.close()
         return changed
 
     def changeName(self, old_name=None, new_name=None):
-        """Need to update all dbs when the refName is changed"""
-        print("This will change the refName '{}' to '{}' in all databases".format(old_name, new_name))
+        """Need to update all dbs when the refname is changed"""
+        print("This will change the refname '{}' to '{}' in all databases".format(old_name, new_name))
         print("\tFirst in " + self.inFile)
         db = sqlite3.connect(self.inFile)
         qdb = db.cursor()
-        qdb_exec = "SELECT * FROM records WHERE refName='{}'".format(old_name)
+        qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(old_name)
         qdb.execute(qdb_exec)
         changing = qdb.fetchall()
         if len(changing) == 1:
-            qdb_exec = "UPDATE records SET refName='{}' WHERE refName='{}'".format(new_name, old_name)
+            qdb_exec = "UPDATE records SET refname='{}' WHERE refname='{}'".format(new_name, old_name)
             qdb.execute(qdb_exec)
-            qdb_exec = "UPDATE trace SET refName='{}' WHERE refName='{}'".format(new_name, old_name)
+            qdb_exec = "UPDATE trace SET refname='{}' WHERE refname='{}'".format(new_name, old_name)
             qdb.execute(qdb_exec)
-            qdb_exec = "UPDATE updated SET refName='{}' WHERE refName='{}'".format(new_name, old_name)
+            qdb_exec = "UPDATE updated SET refname='{}' WHERE refname='{}'".format(new_name, old_name)
             qdb.execute(qdb_exec)
             db.commit()
             db.close()
@@ -536,7 +522,7 @@ class Data:
                 print('\tChecking ' + inFile)
                 db = sqlite3.connect(inFile)
                 qdb = db.cursor()
-                qdb_exec = "SELECT * FROM trace WHERE traceName='{}' and traceType='{}'".format(old_name, self.dbtype)
+                qdb_exec = "SELECT * FROM trace WHERE tracename='{}' and traceType='{}'".format(old_name, self.dbtype)
                 qdb.execute(qdb_exec)
                 changing = qdb.fetchall()
                 if len(changing) > 0:
@@ -544,7 +530,7 @@ class Data:
                     if len(changing) == 1:
                         plural = ''
                     print('\t\t{} record{}'.format(len(changing), plural))
-                    qdb_exec = "UPDATE trace SET traceName='{}' WHERE traceName='{}' and traceType='{}'".format(new_name, old_name, self.dbtype)
+                    qdb_exec = "UPDATE trace SET tracename='{}' WHERE tracename='{}' and traceType='{}'".format(new_name, old_name, self.dbtype)
                     qdb.execute(qdb_exec)
                     db.commit()
                 else:
@@ -570,69 +556,15 @@ class Data:
             for rec in checkrec:
                 for rs in self.data[rec][tr + 'Trace']:
                     if len(rs) > 0:
-                        qdb_exec = "SELECT * FROM records WHERE refName='{}'".format(rs)
+                        qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(rs)
                         qdb.execute(qdb_exec)
                         checking = qdb.fetchall()
                         if len(checking) == 0:
                             print(rs + ' not found in entry ' + self.dbtype + ':' + rec)
 
-    def checkHandle(self, handle):
-        badHandle = not handle.isalpha()
-        if badHandle:
-            print("Note that tex can't have any digits or non-alpha characters")
-            useHandle = raw_input('Please try a new handle:  ')
-            self.checkHandle(useHandle)
-        else:
-            useHandle = handle
-        return useHandle
-
-    def makeHandle(self, refName):
-        if refName.isalpha():
-            return refName
-        r = {'1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five', '6': 'six',
-             '7': 'seven', '8': 'eight', '9': 'nine', '0': 'zero',
-             '-': 'dash', ':': '', '.': 'dot', ',': 'comma', '_': 'underscore'}
-        handle = ''
-        for c in refName:
-            if c in r.keys():
-                handle += r[c]
-            elif not c.isalpha():
-                handle += 'X'
-            else:
-                handle += c
-        handle = self.checkHandle(handle)
-        return handle
-
-    def _getRecordItems4Input(self, name):
-        print('Fields for ' + name)
-        print('Hit <return> if none')
-        print
-        field = []
-        new_values = []
-        emsort = utils.sortByValue(self.sqlMap)
-        for e in emsort:
-            if e == 'refName' or e == ' id':
-                continue
-            cursor = 'Input ' + e + ':  '
-            nv = raw_input(cursor)
-            if len(nv) > 0:
-                field.append(e)
-                new_values.append(nv)
-        print('Input trace values:  (<return> for none or comma-separated list for multiple)')
-        for tr in self.traceables:
-            e = tr + 'Trace'
-            cursor = '\tInput ' + e + ':  '
-            nv = raw_input(cursor)
-            if len(nv) > 0:
-                field.append(e)
-                new_values.append(nv)
-        print
-        return field, new_values
-
-
 # ##################################################################VIEW##################################################################
     def show_schema(self):
-        sm = self.getSQLmap(self.inFile)
+        sm = self.get_sql_map(self.inFile)
         for v in sorted(sm.values()):
             for k in sm.keys():
                 if sm[k] == v:
@@ -669,8 +601,7 @@ class Data:
         else:
             save2file = False
         for name in view:
-            handle = self.makeHandle(name)
-            other = self.data[name]['other']
+            handle = pd_utils.make_handle(name)
             value = self.data[name]['value']
             description = self.data[name]['description']
             dtype = self.data[name]['type']
@@ -678,25 +609,29 @@ class Data:
                 pass
             else:
                 continue
-            owners = self.data[name]['owners']
+            owner = self.data[name]['owner']
+            other = self.data[name]['other']
             updated = self.data[name]['updated']
             notes = self.data[name]['notes']
             idno = self.data[name]['id']
             status = self.data[name]['status']
-            s = '({}) Name:  {}     (\\def\\{})\n'.format(idno, name, handle)
+            commentary = self.data[name]['commentary']
+            s = '({}) {}     (\\def\\{})\n'.format(idno, name, handle)
             s += '\tValue:       {}\n'.format(value)
             s += '\tDescription: {}\n'.format(description)
             s += '\tType:        {}\n'.format(dtype)
             s += '\tStatus:      {}\n'.format(status)
             s += '\tNotes:       {}\n'.format(notes)
-            if other:
-                s += '\tOther:       {}\n'.format(other)
             s += '\tOwner:       '
-            if owners:
-                for o in owners:
+            if owner:
+                for o in owner:
                     s += (o + ', ')
                 s = s.strip().strip(',')
             s += '\n'
+            if other:
+                s += '\tOther:       {}\n'.format(other)
+            if commentary:
+                s += '\tCommentary:  {}\n'.format(commentary)
             # ---1---# implement this later for all tracetypes
 # #            if self.dbtype!='reqspec':
 # #                dirName = dbTypes['reqspec'][dbEM['dirName']]
@@ -731,7 +666,6 @@ class Data:
         if save2file:
             print('Writing data to ' + output)
             fp.close()
-        return view
 
     def fileout(self, view='all', output_filename='fileout.txt'):
         view = self._getview(view, self.display_howsort)
@@ -740,12 +674,11 @@ class Data:
             desc = self.data[key]['description']
             val = self.data[key]['value']
             stat = self.data[key]['status']
-            owners = pd_utils.stringify(self.data[key]['owners'])
-            s = '{} ({:8s}) {}:  {}   ({})\n'.format(val, owners, desc, stat, key)
+            owner = pd_utils.stringify(self.data[key]['owner'])
+            s = '{} ({:8s}) {}:  {}   ({})\n'.format(val, owner, desc, stat, key)
             output_file.write(s)
         print('Writing file to ', output_filename)
         output_file.close()
-        return view
 
     def listing(self, view='all'):
         """
@@ -758,9 +691,8 @@ class Data:
             desc = self.data[key]['description']
             val = self.data[key]['value']
             stat = self.data[key]['status']
-            owners = pd_utils.stringify(self.data[key]['owners'])
-            print('{:10.10} {:12.12} \t {:{d_l}} ({})'.format(val, owners, desc, key, d_l=desc_len))
-        return view
+            owner = pd_utils.stringify(self.data[key]['owner'])
+            print('{:10.10} {:12.12} \t {:{d_l}} ({})'.format(val, owner, desc, key, d_l=desc_len))
 
     def gantt(self, view='all'):
         view = self._getview(view, self.display_howsort)
@@ -771,6 +703,9 @@ class Data:
         if self.gantt_label_to_use not in self.required_db_cols:
             print("{} label not found to use.".format(self.gantt_label_to_use))
             return
+        if self.other_gantt_label is not None and self.other_gantt_label not in self.required_db_cols:
+            print("{} other label not found to use.".format(self.other_gantt_label))
+            return
         label_prec = 's'
         if self.gantt_label_to_use == 'description':
             label_prec = '.' + str(self.description_length)
@@ -778,17 +713,17 @@ class Data:
         dates = []
         tstat = []
         pred = []
-        owner = []
+        other = []
         for v in view:
             label = '{:{prec}}'.format(str(self.data[v][self.gantt_label_to_use]), prec=label_prec)
             label = pd_gantt.check_gantt_labels(label, labels)
             labels.append(label)
             value = str(self.data[v]['value'])
             status = str(self.data[v]['status']).lower().strip()
+            othlab = self.data[v][self.other_gantt_label]
             predss = []
             if 'milestoneTrace' in self.data[v].keys():
                 milepred = self.data[v]['milestoneTrace']
-                ownlab = self.data[v]['owners']
                 if self.dbtype == 'milestone' or self.dbtype == 'wbs':
                     for x in milepred:
                         if x in view:
@@ -801,20 +736,17 @@ class Data:
                             predss.append(str(self.data[x]['description'])[0:labelLength])
             pred.append(predss)
             dates.append(value)
-            owner.append(ownlab)
+            other.append(othlab)
             status_return = self.check_ganttable_status(status, value)
             tstat.append(status_return[1])
-        if self.plot_predecessors:
-            pass
-        else:
+        if not self.plot_predecessors:
             pred = None
-        owner_labels = None
-        if self.owner_gantt_labels:
-            owner_labels = owner
-        pd_gantt.plotGantt(labels, dates, pred, tstat, show_cdf=self.show_cdf, other_labels=owner_labels)
-        if self.show_cdf:
-            self.colorBar()
-        return view
+        other_labels = None
+        if self.other_gantt_label:
+            other_labels = other
+        pd_gantt.plotGantt(labels, dates, pred, tstat, show_cdf=self.show_cdf, other_labels=other_labels)
+        if self.show_color_bar:
+            colorBar()
 
     def check_ganttable_status(self, status, value_date):
         if status is None or status.lower() == 'no status':
@@ -847,75 +779,8 @@ class Data:
             status_code = 'late'
             tcode = self.ganttable_status[status_code]
         elif status_code == 'complete':
-            tcode = self._lag2rgb(lag)
+            tcode = lag2rgb(lag)
         return (status_code, tcode)
-
-    def colorBar(self):
-        fff = plt.figure('ColorBar')
-        ax = fff.add_subplot(111)
-        ax.set_yticklabels([])
-        plt.xlabel('Days')
-        for j in range(180):
-            i = j - 90.0
-            c = self._lag2rgb(i)
-            plt.plot([i], [1.0], 's', markersize=20, color=c, markeredgewidth=0.0, fillstyle='full')
-        ar = plt.axis()
-        boxx = [ar[0], ar[1], ar[1], ar[0], ar[0]]
-        boxy = [-5.0, -5.0, 6.0, 6.0, -5.0]
-        plt.plot(boxx, boxy, 'k')
-        plt.axis('image')
-
-    def colorCurve(self):
-        plt.figure('ColorCurve')
-        plt.xlabel('Days')
-        for j in range(180):
-            i = j - 90.0
-            c = self._lag2rgb(i)
-            plt.plot(i, c[0], 'r.')
-            plt.plot(i, c[1], 'g.')
-            plt.plot(i, c[2], 'b.')
-
-    def _lag2rgb0(self, lag):
-        if lag < -90.0:
-            c = (0.0, 1.0, 0.0)
-        elif lag > 90.0:
-            c = (1.0, 0.0, 0.0)
-        else:
-            if lag > -5.0:
-                a = 2.0 * (50.0)**2
-                r = math.exp(-(lag - 90.0)**2 / a)
-            else:
-                r = 0.0
-            if lag < 5.0:
-                a = 2.0 * (50.0)**2
-                g = math.exp(-(lag + 90.0)**2 / a)
-            else:
-                g = 0.0
-            a = 2.0 * (30.0)**2
-            b = math.exp(-(lag)**2 / a)
-            c = (r, g, b)
-        return c
-
-    def _lag2rgb(self, lag):
-        if lag < -90.0:
-            c = (0.0, 1.0, 0.0)
-        elif lag > 90.0:
-            c = (0.0, 0.0, 1.0)
-        else:
-            r = 0.0
-            if lag > -85.0:
-                a = 2.0 * (90.0)**2
-                b = math.exp(-(lag - 90.0)**2 / a)
-                r = 0.5 * math.exp(-(lag - 90.0)**2 / a)
-            else:
-                b = 0.0
-            if lag < 85.0:
-                a = 2.0 * (90.0)**2
-                g = math.exp(-(lag + 90.0)**2 / a)
-            else:
-                g = 0.0
-            c = (r, g, b)
-        return c
 
     def sortby(self, sb):
         sortdict = {}
@@ -930,42 +795,52 @@ class Data:
             sl.append(k[0])
         return sl
 
-    def getEntryString(self, key, ver='short', valueORdef='value'):
-        """key is the dictionary key
-           ver:  long/[short]/table
-           valueORdef:  [value]/def
-           ==>this is from the 'legacy' tex output stuff"""
-        print('getEntryString:  NEED TO ADD IN TYPE, OWNER, UPDATE TO OUTPUT')
-        if valueORdef == 'value':
-            value = self.data[key]['value']
-            description = self.data[key]['description']
-            reqspec = ''
-            for t in self.data[key]['reqspecTrace']:
-                reqspec += (t + ', ')
-            reqspec = reqspec.strip().strip(',')
-            component = ''
-            for c in self.data[key]['componentTrace']:
-                component += (c + ', ')
-            component = component.strip().strip(',')
-        else:
-            value = '\\' + key
-            description = '\\' + key + 'Description'
-            reqspec = '\\' + key + 'Trace'
-            component = '\\' + key + 'Trace'  # duplicate or set to '-'...?
-        notes = self.data[key]['notes']
-
-        if ver[0:2] == 'lo':
-            sout = '\\' + dbTypes[self.dbtype][dbEM['texdef']] + '\{{}\}\{{}\}\{{}\}\{{}\}\{{}\}\n'.format(key, value, description, reqspec, component)
-            if notes != '-' and notes != 'Notes':
-                sout += ('\\noindent\n' + notes + '\n\n')
-            sout += ('\\vspace * {0.25in}\n\n')
-        elif ver[0:2] == 'sh':
-            sout = '\\item \\underline\{{}\}: {} [{}] : [{}]\n'.format(key, value, reqspec, component)
-        elif ver[0:2] == 'ta':
-            sout = '\\textbf\{{}:\} {} & {} & {} & {} \\\\ \\hline\n'.format(key, description, value, reqspec, component)
-        else:
-            sout = ver + ':  Incorrect version set'
-            print(sout)
-        return sout
 
 # ########################################################################################################################################
+def colorBar():
+    fff = plt.figure('ColorBar')
+    ax = fff.add_subplot(111)
+    ax.set_yticklabels([])
+    plt.xlabel('Days')
+    for j in range(180):
+        i = j - 90.0
+        c = lag2rgb(i)
+        plt.plot([i], [1.0], 's', markersize=20, color=c, markeredgewidth=0.0, fillstyle='full')
+    ar = plt.axis()
+    boxx = [ar[0], ar[1], ar[1], ar[0], ar[0]]
+    boxy = [-5.0, -5.0, 6.0, 6.0, -5.0]
+    plt.plot(boxx, boxy, 'k')
+    plt.axis('image')
+
+
+def colorCurve():
+    plt.figure('ColorCurve')
+    plt.xlabel('Days')
+    for j in range(180):
+        i = j - 90.0
+        c = lag2rgb(i)
+        plt.plot(i, c[0], 'r.')
+        plt.plot(i, c[1], 'g.')
+        plt.plot(i, c[2], 'b.')
+
+
+def lag2rgb(lag):
+    if lag < -90.0:
+        c = (0.0, 1.0, 0.0)
+    elif lag > 90.0:
+        c = (0.0, 0.0, 1.0)
+    else:
+        r = 0.0
+        if lag > -85.0:
+            a = 2.0 * (90.0)**2
+            b = math.exp(-(lag - 90.0)**2 / a)
+            r = 0.5 * math.exp(-(lag - 90.0)**2 / a)
+        else:
+            b = 0.0
+        if lag < 85.0:
+            a = 2.0 * (90.0)**2
+            g = math.exp(-(lag + 90.0)**2 / a)
+        else:
+            g = 0.0
+        c = (r, g, b)
+    return c
