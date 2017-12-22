@@ -1,3 +1,4 @@
+#! usr/bin/env python
 from __future__ import absolute_import, print_function
 import os
 from operator import itemgetter
@@ -168,7 +169,7 @@ class Data:
                 print(allowedTypes)
 
         # check Trace table to ensure that all refnames are valid
-        for tracetype in self.traceables:
+        for traceType in self.traceables:
             fieldName = traceType + 'Trace'
             qdb_exec = "SELECT * FROM trace where traceType='{}' COLLATE NOCASE".format(traceType)
             qdb.execute(qdb_exec)
