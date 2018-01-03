@@ -732,7 +732,7 @@ class Data:
                 if self.dbtype == 'milestone' or self.dbtype == 'wbs':
                     for x in milepred:
                         if x in view:
-                            predss.append(str(self.data[x]['description'])[0:labelLength])
+                            predss.append(str(self.data[x]['description'])[0:self.description_length])
             if 'taskTrace' in self.data[v].keys():
                 taskpred = self.data[v]['taskTrace']
                 if self.dbtype == 'task' or self.dbtype == 'wbs':

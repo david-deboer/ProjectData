@@ -1,6 +1,6 @@
 from __future__ import absolute_import, division, print_function
 import code_path
-base_code_path = code_path.set('projectData')
+base_code_path = code_path.set('ProjectData')
 import Data_class
 # import Arch_class
 # import Cost_class
