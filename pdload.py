@@ -70,11 +70,11 @@ def findall(db, field, names=None):
 
 
 print("""Read in:
-    mi : milestones""")
-if NotOnlyMilestones:
-    print("""
+    mi : milestones
     ta : tasks
-    mi+ta ==> wb: wbs
+    mi+ta ==> wb: wbs""")
+if False:
+    print(""")
     rs : reqspecs
     ri : risk
     ic : interfaces
