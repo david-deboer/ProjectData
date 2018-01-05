@@ -137,7 +137,7 @@ class Data:
             # ...get trace information
             for traceType in self.traceables:
                 fieldName = traceType + 'Trace'
-                qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and traceType='{}' ORDER BY level".format(refname, traceType)
+                qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and tracetype='{}' ORDER BY level".format(refname, traceType)
                 qdb.execute(qdb_exec)
                 trace = qdb.fetchall()
                 entry[fieldName] = []
@@ -171,7 +171,7 @@ class Data:
         # check Trace table to ensure that all refnames are valid
         for traceType in self.traceables:
             fieldName = traceType + 'Trace'
-            qdb_exec = "SELECT * FROM trace where traceType='{}' COLLATE NOCASE".format(traceType)
+            qdb_exec = "SELECT * FROM trace where tracetype='{}' COLLATE NOCASE".format(traceType)
             qdb.execute(qdb_exec)
             trace = qdb.fetchall()
             for t in trace:
@@ -447,7 +447,7 @@ class Data:
                 for tr in trlist:
                     print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refname)
                     qf = (refname, tr, 0, ttype)
-                    qdb.execute("INSERT INTO trace(refname,tracename,level,traceType) VALUES (?,?,?,?)", qf)
+                    qdb.execute("INSERT INTO trace(refname,tracename,level,tracetype) VALUES (?,?,?,?)", qf)
             elif fld not in self.sql_map.keys():
                 print('{} is not a database field'.format(fld))
             elif fld == 'refname':
@@ -523,7 +523,7 @@ class Data:
                 print('\tChecking ' + inFile)
                 db = sqlite3.connect(inFile)
                 qdb = db.cursor()
-                qdb_exec = "SELECT * FROM trace WHERE tracename='{}' and traceType='{}'".format(old_name, self.dbtype)
+                qdb_exec = "SELECT * FROM trace WHERE tracename='{}' and tracetype='{}'".format(old_name, self.dbtype)
                 qdb.execute(qdb_exec)
                 changing = qdb.fetchall()
                 if len(changing) > 0:
@@ -531,7 +531,7 @@ class Data:
                     if len(changing) == 1:
                         plural = ''
                     print('\t\t{} record{}'.format(len(changing), plural))
-                    qdb_exec = "UPDATE trace SET tracename='{}' WHERE tracename='{}' and traceType='{}'".format(new_name, old_name, self.dbtype)
+                    qdb_exec = "UPDATE trace SET tracename='{}' WHERE tracename='{}' and tracetype='{}'".format(new_name, old_name, self.dbtype)
                     qdb.execute(qdb_exec)
                     db.commit()
                 else:
