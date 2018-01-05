@@ -46,7 +46,8 @@ class Data:
             self.traceables.append(dbtype)
         self.caption = self.dbTypes[dbtype]['caption']
         self.init_state_variables()
-        self.show_state_var()
+        if verbose:
+            self.show_state_var()
         self.cache_lower_data_keys = []
 
     def init_state_variables(self):

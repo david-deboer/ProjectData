@@ -8,10 +8,10 @@ import Data_class
 mi = Data_class.Data('milestone')
 mi.readData()
 print('\tmilestone array mi')
-ta = Data_class.Data('task')
+ta = Data_class.Data('task', verbose=False)
 ta.readData()
 print('\ttask array ta')
-wb = Data_class.Data('wbs')
+wb = Data_class.Data('wbs', verbose=False)
 wb.concatDat([mi, ta])
 print('\twbs array wb')
 if False:
