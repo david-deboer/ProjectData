@@ -8,14 +8,13 @@ import Data_class
 mi = Data_class.Data('milestone')
 mi.readData()
 print('\tmilestone array mi')
-NotOnlyMilestones = False
-if NotOnlyMilestones:
-    ta = Data_class.Data('task')
-    ta.readData()
-    print('\ttask array ta')
-    wb = Data_class.Data('wbs')
-    wb.concatDat([mi, ta])
-    print('\twbs array wb')
+ta = Data_class.Data('task')
+ta.readData()
+print('\ttask array ta')
+wb = Data_class.Data('wbs')
+wb.concatDat([mi, ta])
+print('\twbs array wb')
+if False:
     rs = Data_class.Data('reqspec')
     rs.readData()
     print('\treqspec array rs')

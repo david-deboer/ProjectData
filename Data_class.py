@@ -326,9 +326,12 @@ class Data:
         if return_list:
             return foundrec
 
-    def list_unique(self, field, returnList=False):
+    def list_unique(self, field, filter_on=[], returnList=False):
         unique_values = []
         for dat in self.data.keys():
+            if filter_on:
+                if self.data[dat][filter_on[0]].lower() != filter_on[1].lower():
+                    continue
             chk = self.data[dat][field]
             if chk is None:
                 continue
@@ -453,7 +456,7 @@ class Data:
             elif fld == 'refname':
                 print('\tChanging name {} to {}'.format(refname, new_value[i]))
                 print("==> I'm not entirely sure this is comprehensive yet or not")
-                if self.changeName(refname, new_value[i]):
+                if self.change_refName(refname, new_value[i]):
                     changed = True
             else:
                 print('\tChanging {}.{} to {}'.format(refname, fld, new_value[i]))
@@ -489,7 +492,7 @@ class Data:
         db.close()
         return changed
 
-    def changeName(self, old_name=None, new_name=None):
+    def change_refName(self, old_name=None, new_name=None):
         """Need to update all dbs when the refname is changed"""
         print("This will change the refname '{}' to '{}' in all databases".format(old_name, new_name))
         print("\tFirst in " + self.inFile)
