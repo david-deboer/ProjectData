@@ -72,7 +72,7 @@ def findall(db, field, names=None):
 print("""Read in:
     mi : milestones
     ta : tasks
-    mi+ta ==> wb: wbs""")
+    wb = mi+ta: wbs""")
 if False:
     print(""")
     rs : reqspecs
