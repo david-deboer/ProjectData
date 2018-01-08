@@ -243,16 +243,20 @@ class Data:
         """This will find records matching value1, except for milestones which looks between value1,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used [None]
-            dtype:  data type (db dependent, can use 'any'/'all') [nsfB]
+            dtype:  data type (db dependent, can use 'any'/'all') [all] (can be list or string)
             field:  field in which to search (or 'any'/'all')  [value]
-            owner:  string for one owner (can use 'any'/'all')
+            owner:  string for one owner (can use 'any'/'all'), (can be list or string)
             match:  strength of match (weak, moderate, strong, verystrong) [weak]
             howsort:  field on which to sort display [value]
             display:  how to return data ('show'/'listing'/'gantt'/'file')  [gantt]
             only_late:  if True, will only display late items [False]
             return_list: if True, will return the list [False]"""
 
-        pthru = ['any', 'all']
+        pthru = ['any', 'all', 'n/a']  # do all owner/dtype if one of these
+        if isinstance(owner, str):
+            owner = [owner]
+        if isinstance(dtype, str):
+            dtype = [dtype]
         if len(self.data) == 0:
             print('Please read in the data')
             return 0
@@ -266,36 +270,42 @@ class Data:
                 value1time = time.mktime(time.strptime(value, '%y/%m/%d'))
                 value2time = time.mktime(time.strptime(value2, '%y/%m/%d'))
             except ValueError:
-                print(value, value2)
-                return 'Incorrect ganttable value term'
-            for dat in self.data.keys():
-                etype = str(self.data[dat]['type']).lower()  # dtype of entry
-                eowner = (self.data[dat]['owner'] if self.data[dat]['owner'] is not None else [])
-                use_this_rec = False
-                # Check stuff
-                dtype_check = (dtype.lower() in pthru) or (dtype.lower() == etype) or (etype.lower() == 'na')
-                owner_check = (owner.lower() in pthru) or (owner in eowner)
-                field_check = self.data[dat][field] is not None
-                if dtype_check and owner_check and field_check:
-                    if '-' in self.data[dat][field]:
-                        val2check = self.data[dat][field].split('-')[0].strip()
-                        print(dat + ':  Date range given - looking at start: ', val2check)
-                    else:
-                        val2check = str(self.data[dat][field])
-                    try:
-                        timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
-                    except ValueError:
-                        print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['name']))
-                        timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
-                    if timevalue >= value1time and timevalue <= value2time:
-                        use_this_rec = True
-                if use_this_rec:
-                    if only_late:
-                        status = self.check_ganttable_status(self.data[dat]['status'], val2check)
-                        if status[0] != 'late':
-                            use_this_rec = False
-                if use_this_rec:
-                    foundrec.append(dat)
+                try:
+                    value1time = time.mktime(time.strptime(value, '%Y/%m/%d'))
+                    value2time = time.mktime(time.strptime(value2, '%Y/%m/%d'))
+                except ValueError:
+                    print(value, value2)
+                    return 'Incorrect ganttable value term'
+            for dat in self.data.keys():  # Loop over all records
+                rec_dtype = str(self.data[dat]['type']).lower()
+                rec_owner = (self.data[dat]['owner'] if self.data[dat]['owner'] is not None else [])
+                for i_owner in owner:
+                    for i_dtype in dtype:
+                        use_this_rec = False
+                        # Check stuff
+                        dtype_check = (i_dtype.lower() in pthru) or (i_dtype.lower() == rec_dtype)
+                        owner_check = (i_owner.lower() in pthru) or (i_owner in rec_owner)
+                        field_check = self.data[dat][field] is not None
+                        if dtype_check and owner_check and field_check:
+                            if '-' in self.data[dat][field]:
+                                val2check = self.data[dat][field].split('-')[0].strip()
+                                print(dat + ':  Date range given - looking at start: ', val2check)
+                            else:
+                                val2check = str(self.data[dat][field])
+                            try:
+                                timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
+                            except ValueError:
+                                print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['name']))
+                                timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
+                            if timevalue >= value1time and timevalue <= value2time:
+                                use_this_rec = True
+                        if use_this_rec:
+                            if only_late:
+                                status = self.check_ganttable_status(self.data[dat]['status'], val2check)
+                                if status[0] != 'late':
+                                    use_this_rec = False
+                        if use_this_rec:
+                            foundrec.append(dat)
         else:
             for dat in self.data.keys():
                 foundType = False
