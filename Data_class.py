@@ -49,6 +49,7 @@ class Data:
         if verbose:
             self.show_state_var()
         self.cache_lower_data_keys = []
+        self.__enable_new_entry = False
 
     def init_state_variables(self):
         self.state_vars = ['show_cdf', 'description_length', 'gantt_label_to_use', 'other_gantt_label',
@@ -126,11 +127,11 @@ class Data:
         data = {}
         self.cache_lower_data_keys = []
         for rec in db:
-            refname = rec[sm['refname']]
+            refname = rec[sm['refname'][0]]
             # ...get a single entry
             entry = {}
             for v in sm.keys():
-                entry[v] = rec[sm[v]]  # This makes the entry dictionary
+                entry[v] = rec[sm[v][0]]  # This makes the entry dictionary
             if entry['status'] is None:
                 entry['status'] = 'No status'
             if entry['owner'] is not None:
@@ -217,7 +218,7 @@ class Data:
                 if show_detail:
                     print('\t', t)
                 if tbl == 'records':
-                    sql_map[str(t[1])] = t[0]
+                    sql_map[str(t[1])] = (t[0], t[2])
         dbconnect.close()
         return sql_map
 
@@ -360,18 +361,21 @@ class Data:
         if returnList:
             return unique_values
 
-    def getref(self, v, search='description'):
+    def getref(self, d, search='description'):
         fndk = []
-        d = v.lower()
         for dat in self.data.keys():
             dbdesc = self.data[dat][search]
             if dbdesc is not None:
-                if d in dbdesc.lower():
-                    fndk.append(dat)
+                if isinstance(d, str):
+                    if d.lower() in dbdesc.lower():
+                        fndk.append(dat)
+                else:
+                    if d == dbdesc:
+                        fndk.append(dat)
         if len(fndk) == 1:
             return fndk[0]
         else:
-            print("{} found (should be 1).".format(len(fndk)))
+            print("{} found".format(len(fndk)))
             for f in fndk:
                 refname = self.data[f]['refname']
                 dbdesc = self.data[f]['description']
@@ -408,6 +412,17 @@ class Data:
         return None
 
 # ##################################################################UPDATE##################################################################
+    def new(self, refname, field, new_value, dt=None, updater=None, upnote=None):
+        """Adds a new record (essentially a wrapper for update which enables new)
+        """
+        self.__enable_new_entry = True
+        if 'refname' in field:
+            print("New entries shouldn't include 'refname' in the field/value entries.")
+            print("Not adding record.")
+            return False
+        self.update(refname=refname, field=field, new_value=new_value, dt=dt, updater=updater, upnote=upnote)
+        self.__enable_new_entry = False
+
     def update(self, refname, field, new_value, dt=None, updater=None, upnote=None):
         """Updates a record field as well as the updated db, adds if not present
             name is the refname of the record, if not present a new entry is made
@@ -431,26 +446,43 @@ class Data:
         qdb = db.cursor()
         qdb.execute("SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(refname))
         changing = qdb.fetchall()
+
+        # Checking new versus existing
+        ok_to_change = True
+        valid_new_entry = False
         if len(changing) > 1:
             print('Duplicated refname in ' + self.inFile + ' (' + refname + ')')
-            print('==> returning without update, so fix that!')
+            ok_to_change = False
+        elif not len(changing):  # Not present
+            if self.__enable_new_entry:
+                print('Adding new entry ' + refname)
+                qdb.execute("SELECT * FROM records ORDER BY id")
+                cnt = qdb.fetchall()
+                new_id = cnt[-1][self.sql_map['id'][0]] + 1  # works since we SORT BY id
+                field.append('id')
+                new_value.append(new_id)
+                qdb.execute("INSERT INTO records(refname) VALUES (?)", (refname,))
+                changed = True
+                if upnote is None:
+                    upnote = 'Initial'
+                db.commit()
+                valid_new_entry = True
+            else:
+                print("{} not present to update.".format(refname))
+                ok_to_change = False
+        else:
+            if self.__enable_new_entry:
+                print("{} already exists, can't add it as new.".format(refname))
+                ok_to_change = False
+            else:
+                refname = changing[0][self.sql_map['refname'][0]]
+        if not ok_to_change:
+            print("---returning without update---")
             db.close()
             return False
+
+        # Process it
         changed = False
-        if not len(changing):
-            print('Adding new entry ' + refname)
-            qdb.execute("SELECT * FROM records ORDER BY id")
-            cnt = qdb.fetchall()
-            new_id = cnt[-1][self.sql_map['id']] + 1  # works since we SORT BY id
-            field.append('id')
-            new_value.append(new_id)
-            qdb.execute("INSERT INTO records(refname) VALUES (?)", (refname,))
-            changed = True
-            if upnote is None:
-                upnote = 'Initial'
-            db.commit()
-        else:
-            refname = changing[0][self.sql_map['refname']]
         for i, fld in enumerate(field):
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
@@ -495,7 +527,10 @@ class Data:
                 updater = raw_input("Who is updating:  ")
             if upnote is None:
                 upnote = raw_input("Update note to append previous record notes:  ")
-            full_upnote = upnote + ' :: <Previous note: ' + changing[0][self.sql_map['notes']] + '>'
+            if self.valid_new_entry:
+                full_upnote = upnote
+            else:
+                full_upnote = upnote + ' :: <Previous note: ' + changing[0][self.sql_map['notes'][0]] + '>'
             qv = (refname, dt, updater, full_upnote, new_update)
             qdb.execute(qdb_exec, qv)
             db.commit()
