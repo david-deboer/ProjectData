@@ -13,9 +13,29 @@ import pd_gantt
 import pd_utils
 
 
+class Records_fields:
+    def __init__(self):
+        self.required = ['refname', 'value', 'description', 'dtype', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
+        self.find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
+
+    def set_find_default(self):
+        self.dtype = ['all']
+        self.owner = ['all']
+        self.other = ['all']
+        self.status = ['all']
+        self.id = [-1]
+
+    def get_find_rec(self, rec):
+        self.dtype = str(rec['dtype']).lower()
+        self.owner = (rec['owner'] if rec['owner'] is not None else [])
+        self.other = (rec['other'] if rec['other'] is not None else [])
+        self.status = (rec['status'].split()[0] if rec['owner'] is not None else [])
+        self.id = rec['id']
+
+
 class Data:
     db_json_file = 'databases.json'
-    required_db_cols = ['refname', 'value', 'description', 'dtype', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
+    Records = Records_fields()
 
     def __init__(self, dbtype, projectStart='14/09/01', verbose=True):
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
@@ -103,7 +123,7 @@ class Data:
             else:
                 print('Sorry, ' + inFile + ' is not a valid database')
             return None
-        for r in self.required_db_cols:
+        for r in self.Records.required:
             if r not in sm.keys():
                 raise ValueError("{} column not found in {}.".format(r, inFile))
 
@@ -212,6 +232,7 @@ class Data:
             return 0
         qdb = dbconnect.cursor()
         sql_map = {}
+        self.rec_fields = []
         for tbl in tables:
             qdb.execute("PRAGMA table_info({})".format(tbl))
             if show_detail:
@@ -221,6 +242,7 @@ class Data:
                     print('\t', t)
                 if tbl == 'records':
                     sql_map[str(t[1])] = (t[0], t[2])
+                    self.rec_fields.append(t[1])
         dbconnect.close()
         return sql_map
 
@@ -241,28 +263,30 @@ class Data:
         fullcount -= overcount
 
 # ##################################################################FIND##################################################################
-    def find(self, value, value2=None, dtype='all', field='value', owner='all',
-             match='weak', howsort='value', display='gantt', only_late=False, return_list=False):
+    def find(self, value, value2=None, field='value', match='weak', display='gantt', return_list=False, **kwargs):
         """This will find records matching value1, except for milestones which looks between value1,value2 dates (time format is yy/m/d)
             value: value for which to search
-            value2: second value if used [None]
-            dtype:  data type (db dependent, can use 'any'/'all') [all] (can be list or string)
+            value2: second value if used e.g. for bounding dates [None]
             field:  field in which to search (or 'any'/'all')  [value]
-            owner:  string for one owner (can use 'any'/'all'), (can be list or string)
             match:  strength of match (weak, moderate, strong, verystrong) [weak]
-            howsort:  field on which to sort display [value]
             display:  how to return data ('show'/'listing'/'gantt'/'file')  [gantt]
-            only_late:  if True, will only display late items [False]
-            return_list: if True, will return the list [False]"""
+            return_list: if True, will return the list [False]
+            kwargs:  one of the following records table fields - dtype, status, owner, other, id"""
 
-        pthru = ['any', 'all', 'n/a']  # do all owner/dtype if one of these
-        if isinstance(owner, str):
-            owner = [owner]
-        if isinstance(dtype, str):
-            dtype = [dtype]
-        if len(self.data) == 0:
-            print('Please read in the data')
-            return 0
+        # Set defaults
+        Records.set_find_default()
+        # Run through kwargs
+        for k in kwargs.keys():
+            if k in Records.find_allowed:
+                if isinstance(kwargs[k], str) or isinstance(kwargs[k], int):
+                    setattr(Records, k, [kwargs[k]])
+                else:
+                    setattr(Records, k, kwargs[k])
+            else:
+                print('keyword {} not allowed'.format(k))
+                continue
+        pthru = ['any', 'all', 'n/a', -1]  # do all if one of these
+
         foundrec = []
         if self.dbtype in self.ganttables and field.lower() == 'value':
             # ...value is a date, so checking dtype and date(s)
@@ -282,6 +306,8 @@ class Data:
             for dat in self.data.keys():  # Loop over all records
                 rec_dtype = str(self.data[dat]['dtype']).lower()
                 rec_owner = (self.data[dat]['owner'] if self.data[dat]['owner'] is not None else [])
+                rec_other = (self.data[dat]['other'] if self.data[dat]['other'] is not None else [])
+                status = (self.data[dat]['status'] if self.data[dat]['owner'] is not None else [])
                 for i_owner in owner:
                     for i_dtype in dtype:
                         use_this_rec = False
@@ -624,7 +650,7 @@ class Data:
         print
 
     def _getview(self, view, howsort):
-        if howsort not in self.required_db_cols:
+        if howsort not in self.Records.required:
             print("{} sort option not valid.")
         if view == 'all':
             view = self.data.keys()
@@ -765,10 +791,10 @@ class Data:
             print('You can only gantt:  ', self.ganttables)
         if type(view) != list:
             view = [view]
-        if self.gantt_label_to_use not in self.required_db_cols:
+        if self.gantt_label_to_use not in self.Records.required:
             print("{} label not found to use.".format(self.gantt_label_to_use))
             return
-        if self.other_gantt_label is not None and self.other_gantt_label not in self.required_db_cols:
+        if self.other_gantt_label is not None and self.other_gantt_label not in self.Records.required:
             print("{} other label not found to use.".format(self.other_gantt_label))
             return
         label_prec = 's'
