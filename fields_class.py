@@ -15,6 +15,14 @@ class Records_fields:
         self.id = [-1]
 
     def find_check(self, Finding, rec, status):
+        """
+        Steps through the self.find_allowed as filter.
+        Parameters:
+        -----------
+        Finding:  is a class Records_fields that has the search terms (as initially set in set_find_defaults)
+        rec:  is one record of Data_class
+        status:  is the status as returned by check_ganttable_status
+        """
         owner = (rec['owner'] if rec['owner'] is not None else [])
         if isinstance(owner, str):
             owner = [owner]
