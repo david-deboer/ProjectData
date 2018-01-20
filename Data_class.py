@@ -11,31 +11,12 @@ import matplotlib.pyplot as plt
 #  Project specific modules
 import pd_gantt
 import pd_utils
-
-
-class Records_fields:
-    def __init__(self):
-        self.required = ['refname', 'value', 'description', 'dtype', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
-        self.find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
-
-    def set_find_default(self):
-        self.dtype = ['all']
-        self.owner = ['all']
-        self.other = ['all']
-        self.status = ['all']
-        self.id = [-1]
-
-    def get_find_rec(self, rec):
-        self.dtype = str(rec['dtype']).lower()
-        self.owner = (rec['owner'] if rec['owner'] is not None else [])
-        self.other = (rec['other'] if rec['other'] is not None else [])
-        self.status = (rec['status'].split()[0] if rec['owner'] is not None else [])
-        self.id = rec['id']
+import fields_class as FC
 
 
 class Data:
     db_json_file = 'databases.json'
-    Records = Records_fields()
+    Records = FC.Records_fields()
 
     def __init__(self, dbtype, projectStart='14/09/01', verbose=True):
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
@@ -273,20 +254,19 @@ class Data:
             return_list: if True, will return the list [False]
             kwargs:  one of the following records table fields - dtype, status, owner, other, id"""
 
-        # Set defaults
-        Records.set_find_default()
-        # Run through kwargs
+        # Set defaults and run through kwarg filters
+        self.Records.set_find_default()
         for k in kwargs.keys():
-            if k in Records.find_allowed:
+            if k in self.Records.find_allowed:
                 if isinstance(kwargs[k], str) or isinstance(kwargs[k], int):
-                    setattr(Records, k, [kwargs[k]])
+                    setattr(self.Records, k, [kwargs[k]])
                 else:
-                    setattr(Records, k, kwargs[k])
+                    setattr(self.Records, k, kwargs[k])
             else:
                 print('keyword {} not allowed'.format(k))
                 continue
-        pthru = ['any', 'all', 'n/a', -1]  # do all if one of these
 
+        rec = FC.Records_fields()
         foundrec = []
         if self.dbtype in self.ganttables and field.lower() == 'value':
             # ...value is a date, so checking dtype and date(s)
@@ -304,37 +284,20 @@ class Data:
                     print(value, value2)
                     return 'Incorrect ganttable value term'
             for dat in self.data.keys():  # Loop over all records
-                rec_dtype = str(self.data[dat]['dtype']).lower()
-                rec_owner = (self.data[dat]['owner'] if self.data[dat]['owner'] is not None else [])
-                rec_other = (self.data[dat]['other'] if self.data[dat]['other'] is not None else [])
-                status = (self.data[dat]['status'] if self.data[dat]['owner'] is not None else [])
-                for i_owner in owner:
-                    for i_dtype in dtype:
-                        use_this_rec = False
-                        # Check stuff
-                        dtype_check = (i_dtype.lower() in pthru) or (i_dtype.lower() == rec_dtype)
-                        owner_check = (i_owner.lower() in pthru) or (i_owner in rec_owner)
-                        field_check = self.data[dat][field] is not None
-                        if dtype_check and owner_check and field_check:
-                            if '-' in self.data[dat][field]:
-                                val2check = self.data[dat][field].split('-')[0].strip()
-                                print(dat + ':  Date range given - looking at start: ', val2check)
-                            else:
-                                val2check = str(self.data[dat][field])
-                            try:
-                                timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
-                            except ValueError:
-                                print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['refname']))
-                                timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
-                            if timevalue >= value1time and timevalue <= value2time:
-                                use_this_rec = True
-                        if use_this_rec:
-                            if only_late:
-                                status = self.check_ganttable_status(self.data[dat]['status'], val2check)
-                                if status[0] != 'late':
-                                    use_this_rec = False
-                        if use_this_rec:
-                            foundrec.append(dat)
+                check_this_rec = rec.find_check(self.Records, self.data[dat])
+                if check_this_rec and self.data[dat][field] is not None:
+                    if '-' in self.data[dat][field]:
+                        val2check = self.data[dat][field].split('-')[0].strip()
+                        print(dat + ':  Date range given - looking at start: ', val2check)
+                    else:
+                        val2check = str(self.data[dat][field])
+                    try:
+                        timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
+                    except ValueError:
+                        print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['refname']))
+                        timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
+                    if timevalue >= value1time and timevalue <= value2time:
+                        foundrec.append(dat)
         else:
             for dat in self.data.keys():
                 foundType = False
