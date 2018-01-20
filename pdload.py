@@ -1,6 +1,10 @@
 from __future__ import absolute_import, division, print_function
-import code_path
-base_code_path = code_path.set('ProjectData')
+try:
+    import code_path
+    base_code_path = code_path.set('ProjectData')
+except ImportError:
+    import sys
+    sys.path.append('<<<relevant-path-to-code>>>')
 import Data_class
 # import Arch_class
 # import Cost_class
