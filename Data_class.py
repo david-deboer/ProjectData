@@ -273,29 +273,22 @@ class Data:
             if value2 is None:
                 value2 = value
                 value = self.projectStart
-            try:
-                value1time = time.mktime(time.strptime(value, '%y/%m/%d'))
-                value2time = time.mktime(time.strptime(value2, '%y/%m/%d'))
-            except ValueError:
-                try:
-                    value1time = time.mktime(time.strptime(value, '%Y/%m/%d'))
-                    value2time = time.mktime(time.strptime(value2, '%Y/%m/%d'))
-                except ValueError:
-                    print(value, value2)
-                    return 'Incorrect ganttable value term'
+            value1time = pd_utils.get_time(value)
+            value2time = pd_utils.get_time(value2)
+            if not isinstance(value1time, time.struct_time) or not isinstance(value2time, time.struct_time):
+                return 0
             for dat in self.data.keys():  # Loop over all records
-                check_this_rec = rec.find_check(self.Records, self.data[dat])
-                if check_this_rec and self.data[dat][field] is not None:
-                    if '-' in self.data[dat][field]:
-                        val2check = self.data[dat][field].split('-')[0].strip()
-                        print(dat + ':  Date range given - looking at start: ', val2check)
-                    else:
-                        val2check = str(self.data[dat][field])
-                    try:
-                        timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
-                    except ValueError:
-                        print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['refname']))
-                        timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
+                if self.data[dat][field] is None:
+                    continue
+                if '-' in self.data[dat][field]:  # A date range is given - use first
+                    val2check = self.data[dat][field].split('-')[0].strip()
+                else:
+                    val2check = str(self.data[dat][field])
+                timevalue = pd_utils.get_time(val2check)
+                if not isinstance(timevalue, time.struct_time):
+                    continue
+                status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
+                if rec.find_check(self.Records, self.data[dat], status):
                     if timevalue >= value1time and timevalue <= value2time:
                         foundrec.append(dat)
         else:
@@ -806,8 +799,8 @@ class Data:
         if self.show_color_bar:
             colorBar()
 
-    def check_ganttable_status(self, status, value_date):
-        if status is None or status.lower() == 'no status':
+    def check_ganttable_status(self, status, valuetime):
+        if status is None or status.lower() == 'no status' or not len(status):
             status = 'none'
         status = status.lower().split()
         status_code = status[0]
@@ -817,21 +810,24 @@ class Data:
         if status_code == 'removed':
             return (status_code, tcode)
 
-        if '-' in value_date:
-            value_date = value_data.split('-')[-1]
-        valuetime = time.mktime(time.strptime(value_date, '%y/%m/%d'))
-        now = time.time()
+        if isinstance(valuetime, str):
+            if '-' in valuetime:
+                valuetime = valuetime.split('-')[-1]
+            valuetime = pd_utils.get_time(valuetime)
+        elif not isinstance(valuetime, time.struct_time):
+            print("Invalid time:  ", valuetime, type(valuetime))
+        now = time.localtime()
 
         lag = 0.0
         if len(status) == 2:
             try:
-                statustime = time.mktime(time.strptime(status[1], '%y/%m/%d'))
-                lag = (statustime - valuetime) / 3600.0 / 24.0
-                # Interpreted as "completed at X" or "moved to X"
-                if status_code == 'complete' or status_code == 'moved':
-                    valuetime = statustime
-            except ValueError:
                 lag = float(status[1])
+            except ValueError:
+                statustime = pd_utils.get_time(status[1])
+                if isinstance(statustime, time.struct_time):
+                    lag = (statustime - valuetime) / 3600.0 / 24.0
+                else:
+                    tcode = status[1]
 
         if now > valuetime and status_code != 'complete':
             status_code = 'late'

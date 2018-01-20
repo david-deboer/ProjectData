@@ -1,4 +1,18 @@
+from __future__ import print_function
 import os
+import time
+
+
+def get_time(timestr):
+    try:
+        timeval = time.strptime(timestr, '%y/%m/%d')
+    except ValueError:
+        try:
+            timeval = time.strptime(timestr, '%Y/%m/%d')
+        except ValueError:
+            print('Incorrect time:  ', timestr)
+            timeval = None
+    return timeval
 
 
 def get_db_json(dbjson='databases.json'):
@@ -90,7 +104,7 @@ def sortByValue(inDict):
     for i, v in enumerate(inDict):
         nk = inDict[v]
         if nk in ind.keys():
-            print 'sortByValue key [ ' + str(nk) + ' ] already exists, overwriting...'
+            print('sortByValue key [ ' + str(nk) + ' ] already exists, overwriting...')
         ind[nk] = v
     sind = ind.keys()
     sind.sort()
