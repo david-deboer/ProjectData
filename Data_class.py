@@ -53,7 +53,8 @@ class Data:
 
     def init_state_variables(self):
         self.state_vars = ['show_cdf', 'description_length', 'gantt_label_to_use', 'other_gantt_label',
-                           'display_howsort', 'plot_predecessors', 'show_dtype', 'show_trace', 'show_color_bar']
+                           'display_howsort', 'plot_predecessors', 'show_dtype', 'show_trace', 'show_color_bar',
+                           'output_filename']
         self.show_cdf = True
         self.show_color_bar = True
         self.description_length = 50
@@ -63,6 +64,7 @@ class Data:
         self.plot_predecessors = True
         self.show_dtype = 'all'
         self.show_trace = True
+        self.output_filename = 'fileout.csv'
 
     def set_state(self, **kwargs):
         for k, v in kwargs.iteritems():
@@ -717,18 +719,31 @@ class Data:
             print('Writing data to ' + output)
             fp.close()
 
-    def fileout(self, view='all', output_filename='fileout.txt'):
+    def fileout(self, view='all'):
+        tag = self.output_filename.split('.')[1]
+        if tag == 'csv':
+            import csv
         view = self._getview(view, self.display_howsort)
-        output_file = open(output_filename, 'w')
-        for key in view:
-            desc = self.data[key]['description']
-            val = self.data[key]['value']
-            stat = self.data[key]['status']
-            owner = pd_utils.stringify(self.data[key]['owner'])
-            s = '{} ({:8s}) {}:  {}   ({})\n'.format(val, owner, desc, stat, key)
-            output_file.write(s)
-        print('Writing file to ', output_filename)
-        output_file.close()
+        with open(self.output_filename, 'wb') as output_file:
+            if tag == 'csv':
+                s = ['value', 'description', 'owner', 'status', 'other', 'notes', 'commentary']
+                csvw = csv.writer(output_file)
+                csvw.writerow(s)
+            for key in view:
+                description = self.data[key]['description']
+                val = self.data[key]['value']
+                status = self.data[key]['status']
+                owner = pd_utils.stringify(self.data[key]['owner'])
+                other = pd_utils.stringify(self.data[key]['other'])
+                notes = pd_utils.stringify(self.data[key]['notes'])
+                commentary = pd_utils.stringify(self.data[key]['commentary'])
+                if tag == 'csv':
+                    s = [val, description, owner, status, other, notes, commentary]
+                    csvw.writerow(s)
+                else:
+                    s = '{} ({:8s}) {}:  {}   ({})\n'.format(val, owner, description, status, key)
+                    output_file.write(s)
+        print('Writing file to ', self.output_filename)
 
     def listing(self, view='all'):
         """
