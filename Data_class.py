@@ -288,7 +288,7 @@ class Data:
                 if not isinstance(timevalue, time.struct_time):
                     continue
                 status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
-                if rec.find_check(self.Records, self.data[dat], status):
+                if rec.find_filter(self.Records, self.data[dat], status):
                     if timevalue >= value1time and timevalue <= value2time:
                         foundrec.append(dat)
         else:

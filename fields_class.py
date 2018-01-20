@@ -14,7 +14,7 @@ class Records_fields:
         self.status = ['all']
         self.id = [-1]
 
-    def find_check(self, Finding, rec, status):
+    def find_filter(self, Finding, rec, status):
         """
         Steps through the self.find_allowed as filter.
         Parameters:

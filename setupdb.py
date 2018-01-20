@@ -147,7 +147,7 @@ class Database:
 
 ap = argparse.ArgumentParser()
 ap.add_argument('dbtype', help="Name of database type (e.g. milestone).")
-ap.add_argument('input_file', help="Name of text input file to insert.")
+ap.add_argument('-i', 'input-file', dest='input_file', help="Name of text input file to insert.", default=None)
 ap.add_argument('--sloppy', help="Start with the sloppy file.", action='store_true')
 args = ap.parse_args()
 
@@ -155,7 +155,8 @@ db = Database(args.dbtype)
 dbfull = db.get_dbfile()
 if not os.path.exists(dbfull):
     db.create_db()
-if args.sloppy:
-    db.generate_input_file(args.input_file)
-    args.input_file = 'generated_input_file.txt'
-db.insert(args.input_file)
+if args.input_file:
+    if args.sloppy:
+        db.generate_input_file(args.input_file)
+        args.input_file = 'generated_input_file.txt'
+    db.insert(args.input_file)
