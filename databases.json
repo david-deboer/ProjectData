@@ -1,50 +1,10 @@
 {
   "milestone":
   {
-    "subdirectory": "Schedule",
+    "subdirectory": "",
     "dbfilename":  "milestones.db",
     "caption": "Milestones",
     "ganttable": "True",
     "traceable": "True"
-  },
-  "reqspec":
-  {
-    "subdirectory": "Requirements",
-    "dbfilename":  "reqspecs.db",
-    "caption": "Requirements/Specifications",
-    "ganttable": "False",
-    "traceable": "True"
-  },
-  "interface":
-  {
-    "subdirectory": "Architecture/Interfaces",
-    "dbfilename": "interfaces.db",
-    "caption": "Interface Control Documentation",
-    "ganttable":  "False",
-    "traceable": "True"
-  },
-  "risk":
-  {
-    "subdirectory": "Risk",
-    "dbfilename": "risks.db",
-    "caption": "Risk Register",
-    "ganttable":  "False",
-    "traceable": "True"
-  },
-  "task":
-  {
-    "subdirectory": "Schedule",
-    "dbfilename": "tasks.db",
-    "caption": "Task List",
-    "ganttable":  "True",
-    "traceable": "True"
-  },
-  "wbs":
-  {
-    "subdirectory": "NA",
-    "dbfilename": "NA",
-    "caption": "Work Breakdown Structure",
-    "ganttable":  "True",
-    "traceable": "False"
   }
 }

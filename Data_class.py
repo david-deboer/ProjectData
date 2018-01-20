@@ -15,7 +15,7 @@ import pd_utils
 
 class Data:
     db_json_file = 'databases.json'
-    required_db_cols = ['refname', 'value', 'description', 'type', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
+    required_db_cols = ['refname', 'value', 'description', 'dtype', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
 
     def __init__(self, dbtype, projectStart='14/09/01', verbose=True):
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
@@ -115,7 +115,7 @@ class Data:
         db = qdb.fetchall()
         allowedTypes = []
         for t in db:
-            allowedTypes.append(str(t[0]))
+            allowedTypes.append(str(t[0]).lower())
         self.allowedTypes = allowedTypes
 
         # get all records in dbtype database table
@@ -137,9 +137,9 @@ class Data:
             if entry['owner'] is not None:
                 entry['owner'] = entry['owner'].split(',')  # make csv list a python list
             # ...get trace information
-            for traceType in self.traceables:
-                fieldName = traceType + 'Trace'
-                qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and tracetype='{}' ORDER BY level".format(refname, traceType)
+            for tracetype in self.traceables:
+                fieldName = tracetype + 'Trace'
+                qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and tracetype='{}' ORDER BY tracename".format(refname, tracetype)
                 qdb.execute(qdb_exec)
                 trace = qdb.fetchall()
                 entry[fieldName] = []
@@ -165,15 +165,15 @@ class Data:
                 data[refname] = entry
                 self.cache_lower_data_keys.append(refname.lower())
             # ...give warning if not in 'allowedTypes' (but keep anyway)
-            if entry['type'] not in allowedTypes and entry['type'] is not None:
-                print('Warning type not in allowed list for {}: {}'.format(refname, entry['type']))
+            if entry['dtype'] is not None and entry['dtype'].lower() not in allowedTypes:
+                print('Warning type not in allowed list for {}: {}'.format(refname, entry['dtype']))
                 print('Allowed types are:')
                 print(allowedTypes)
 
         # check Trace table to ensure that all refnames are valid
-        for traceType in self.traceables:
-            fieldName = traceType + 'Trace'
-            qdb_exec = "SELECT * FROM trace where tracetype='{}' COLLATE NOCASE".format(traceType)
+        for tracetype in self.traceables:
+            fieldName = tracetype + 'Trace'
+            qdb_exec = "SELECT * FROM trace where tracetype='{}' COLLATE NOCASE".format(tracetype)
             qdb.execute(qdb_exec)
             trace = qdb.fetchall()
             for t in trace:
@@ -278,7 +278,7 @@ class Data:
                     print(value, value2)
                     return 'Incorrect ganttable value term'
             for dat in self.data.keys():  # Loop over all records
-                rec_dtype = str(self.data[dat]['type']).lower()
+                rec_dtype = str(self.data[dat]['dtype']).lower()
                 rec_owner = (self.data[dat]['owner'] if self.data[dat]['owner'] is not None else [])
                 for i_owner in owner:
                     for i_dtype in dtype:
@@ -296,7 +296,7 @@ class Data:
                             try:
                                 timevalue = time.mktime(time.strptime(val2check, '%y/%m/%d'))
                             except ValueError:
-                                print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['name']))
+                                print('Improper time: {} ({})'.format(self.data[dat][field], self.data[dat]['refname']))
                                 timevalue = time.mktime(time.strptime('50/12/31', '%y/%m/%d'))
                             if timevalue >= value1time and timevalue <= value2time:
                                 use_this_rec = True
@@ -310,9 +310,9 @@ class Data:
         else:
             for dat in self.data.keys():
                 foundType = False
-                if dtype.lower() in pthru and self.data[dat]['type'].lower() != 'na':
+                if dtype.lower() in pthru and self.data[dat]['dtype'].lower() != 'na':
                     foundType = True
-                elif dtype.lower() in self.data[dat]['type'].lower():
+                elif dtype.lower() in self.data[dat]['dtype'].lower():
                     foundType = True
                 if foundType:
                     foundMatch = False
@@ -492,8 +492,8 @@ class Data:
                     trlist = [new_value[i]]
                 for tr in trlist:
                     print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refname)
-                    qf = (refname, tr, 0, ttype)
-                    qdb.execute("INSERT INTO trace(refname,tracename,level,tracetype) VALUES (?,?,?,?)", qf)
+                    qf = (refname, tr, ttype, '')
+                    qdb.execute("INSERT INTO trace(refname,tracename,tracetype,comment) VALUES (?,?,?,?)", qf)
             elif fld not in self.sql_map.keys():
                 print('{} is not a database field'.format(fld))
             elif fld == 'refname':
@@ -654,7 +654,7 @@ class Data:
             handle = pd_utils.make_handle(name)
             value = self.data[name]['value']
             description = self.data[name]['description']
-            dtype = self.data[name]['type']
+            dtype = self.data[name]['dtype']
             if self.show_dtype.lower() == 'all' or self.show_dtype.lower() == dtype.lower():
                 pass
             else:
@@ -691,9 +691,9 @@ class Data:
 # #            else:
 # #                rsdata = self.data
             if len(self.traceables) and self.show_trace:
-                for traceType in self.traceables:
-                    fieldName = traceType + 'Trace'
-                    s += '\t' + traceType + ' trace\n'
+                for tracetype in self.traceables:
+                    fieldName = tracetype + 'Trace'
+                    s += '\t' + tracetype + ' trace\n'
                     xxxTrace = self.data[name][fieldName]
                     if len(xxxTrace) == 0 or len(xxxTrace[0]) == 0:
                         s += '\t\tNone\n'
