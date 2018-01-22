@@ -350,7 +350,7 @@ class Data:
         if returnList:
             return unique_values
 
-    def getref(self, d, search='description'):
+    def getref(self, d, search='description', verbose=True):
         fndk = []
         for dat in self.data.keys():
             dbdesc = self.data[dat][search]
@@ -362,6 +362,8 @@ class Data:
                     if d == dbdesc:
                         fndk.append(dat)
         if len(fndk) == 1:
+            if verbose:
+                self.show(fndk[0])
             return fndk[0]
         else:
             print("{} found".format(len(fndk)))
@@ -401,36 +403,25 @@ class Data:
         return None
 
 # ##################################################################UPDATE##################################################################
-    def new(self, refname, field, new_value, dt=None, updater=None, upnote=None):
+    def new(self, refname, dt=None, updater=None, upnote=None, **kwargs):
         """Adds a new record (essentially a wrapper for update which enables new)
         """
         self.__enable_new_entry = True
-        if 'refname' in field:
+        if 'refname' in kwargs.keys():
             print("New entries shouldn't include 'refname' in the field/value entries.")
             print("Not adding record.")
             return False
-        self.update(refname=refname, field=field, new_value=new_value, dt=dt, updater=updater, upnote=upnote)
+        self.update(refname, dt, updater, upnote, kwargs)  # Make sure they match!
         self.__enable_new_entry = False
 
-    def update(self, refname, field, new_value, dt=None, updater=None, upnote=None):
+    def update(self, refname, dt=None, updater=None, upnote=None, **kwargs):
         """Updates a record field as well as the updated db, adds if not present
             name is the refname of the record, if not present a new entry is made
-            field is the field(s) (can be a list) to be updated
-            new_value is the new value(s) (should match field)
             dt is the YY/MM/DD of updated time (default is now)
             updater is the name of the updater (default is to query)
-            upnote is the note to be included in updated record (default is to query or 'initial' on creation)"""
+            upnote is the note to be included in updated record (default is to query or 'initial' on creation)
+            kwargs should be valid key=value pairs"""
         self.readData()
-        field = pd_utils.listify(field)
-        new_value = pd_utils.listify(new_value)  # Beware of extra commas!!!
-        if len(field) != len(new_value):
-            print('Number of fields and values does not match')
-            print('==> returning without update')
-            return False
-        if 'refname' in field and field[-1] != 'refname':
-            print('refname should be last field changed - or outcome may not be what is desired')
-            print('==> returning without update')
-            return False
         db = sqlite3.connect(self.inFile)
         qdb = db.cursor()
         qdb.execute("SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(refname))
@@ -448,8 +439,7 @@ class Data:
                 qdb.execute("SELECT * FROM records ORDER BY id")
                 cnt = qdb.fetchall()
                 new_id = cnt[-1][self.sql_map['id'][0]] + 1  # works since we SORT BY id
-                field.append('id')
-                new_value.append(new_id)
+                kwargs['id'] = new_id
                 qdb.execute("INSERT INTO records(refname) VALUES (?)", (refname,))
                 changed = True
                 if upnote is None:
@@ -459,7 +449,7 @@ class Data:
             else:
                 print("{} not present to update.".format(refname))
                 ok_to_change = False
-        else:
+        else:  # The refname exists and is unique
             if self.__enable_new_entry:
                 print("{} already exists, can't add it as new.".format(refname))
                 ok_to_change = False
@@ -472,29 +462,34 @@ class Data:
 
         # Process it
         changed = False
-        for i, fld in enumerate(field):
+        for fld, new_value in kwargs.iteritems():
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
-                if ',' in new_value[i]:
-                    trlist = new_value[i].split(',')
+                if ',' in new_value:
+                    trlist = new_value.split(',')
                 else:
-                    trlist = [new_value[i]]
+                    trlist = [new_value]
                 for tr in trlist:
                     print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refname)
                     qf = (refname, tr, ttype, '')
                     qdb.execute("INSERT INTO trace(refname,tracename,tracetype,comment) VALUES (?,?,?,?)", qf)
+                changed = True
+            elif fld.lower() == 'refname':  # Do last
+                continue
             elif fld not in self.sql_map.keys():
-                print('{} is not a database field'.format(fld))
-            elif fld == 'refname':
-                print('\tChanging name {} to {}'.format(refname, new_value[i]))
-                print("==> I'm not entirely sure this is comprehensive yet or not")
-                if self.change_refName(refname, new_value[i]):
-                    changed = True
+                print('{} is not a database field - skipping'.format(fld))
+                continue
             else:
-                print('\tChanging {}.{} to {}'.format(refname, fld, new_value[i]))
-                qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value[i], refname)
+                print('\tChanging {}.{} to {}'.format(refname, fld, new_value))
+                qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value, refname)
                 qdb.execute(qdb_exec)
                 changed = True
+        if 'refname' in kwargs.keys():  # Do last
+            print('\tChanging name {} to {}'.format(refname, kwargs['refname']))
+            print("==> I'm not entirely sure this is comprehensive yet or not")
+            if self.change_refName(refname, kwargs['refname']):
+                changed = True
+
         if changed:  # Need to update 'updated' database
             db.commit()
             db.close()
