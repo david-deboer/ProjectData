@@ -55,7 +55,7 @@ class Data:
     def init_state_variables(self):
         self.state_vars = ['show_cdf', 'description_length', 'gantt_label_to_use', 'other_gantt_label',
                            'display_howsort', 'plot_predecessors', 'show_dtype', 'show_trace', 'show_color_bar',
-                           'output_filename']
+                           'output_filename', 'gantt_label_prefix', 'default_find_dtype']
         self.show_cdf = True
         self.show_color_bar = True
         self.description_length = 50
@@ -64,13 +64,16 @@ class Data:
         self.display_howsort = 'value'
         self.plot_predecessors = True
         self.show_dtype = 'all'
+        self.default_find_dtype = None
         self.show_trace = True
         self.output_filename = 'fileout.csv'
+        self.gantt_label_prefix = None
 
     def set_state(self, **kwargs):
         for k, v in kwargs.iteritems():
             if k in self.state_vars:
                 setattr(self, k, v)
+                print('Setting {} to {}'.format(k, v))
             else:
                 print('state_var [{}] not found.'.format(k))
 
@@ -256,6 +259,8 @@ class Data:
 
         # Set defaults and run through kwarg filters
         self.Records.set_find_default()
+        if self.default_find_dtype:
+            self.Records.dtype = self.default_find_dtype
         for k in kwargs.keys():
             if k in self.Records.find_allowed:
                 if isinstance(kwargs[k], str) or isinstance(kwargs[k], int):
@@ -288,7 +293,7 @@ class Data:
                 if not isinstance(timevalue, time.struct_time):
                     continue
                 status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
-                if rec.find_filter(self.Records, self.data[dat], status):
+                if rec.filter_rec(self.Records, self.data[dat], status):
                     if timevalue >= value1time and timevalue <= value2time:
                         foundrec.append(dat)
         else:
@@ -433,7 +438,7 @@ class Data:
 
         # Checking new versus existing
         ok_to_change = True
-        valid_new_entry = False
+        new_entry = False
         if len(changing) > 1:
             print('Duplicated refname in ' + self.inFile + ' (' + refname + ')')
             ok_to_change = False
@@ -450,7 +455,7 @@ class Data:
                 if upnote is None:
                     upnote = 'Initial'
                 db.commit()
-                valid_new_entry = True
+                new_entry = True
             else:
                 print("{} not present to update.".format(refname))
                 ok_to_change = False
@@ -511,7 +516,7 @@ class Data:
                 updater = raw_input("Who is updating:  ")
             if upnote is None:
                 upnote = raw_input("Update note to append previous record notes:  ")
-            if self.valid_new_entry:
+            if new_entry:
                 full_upnote = upnote
             else:
                 full_upnote = upnote + ' :: <Previous note: ' + changing[0][self.sql_map['notes'][0]] + '>'
@@ -750,8 +755,11 @@ class Data:
         if self.gantt_label_to_use not in self.Records.required:
             print("{} label not found to use.".format(self.gantt_label_to_use))
             return
-        if self.other_gantt_label is not None and self.other_gantt_label not in self.Records.required:
+        if self.other_gantt_label and self.other_gantt_label not in self.Records.required:
             print("{} other label not found to use.".format(self.other_gantt_label))
+            return
+        if self.gantt_label_prefix and self.gantt_label_prefix not in self.Records.required:
+            print("{} prefix label not found to use.".format(self.gantt_label_prefix))
             return
         label_prec = 's'
         if self.gantt_label_to_use == 'description':
@@ -762,7 +770,10 @@ class Data:
         pred = []
         other = []
         for v in view:
-            label = '{:{prec}}'.format(str(self.data[v][self.gantt_label_to_use]), prec=label_prec)
+            label = ''
+            if self.gantt_label_prefix:
+                label = '{}: '.format(self.data[v][self.gantt_label_prefix])
+            label += '{:{prec}}'.format(str(self.data[v][self.gantt_label_to_use]), prec=label_prec)
             label = pd_gantt.check_gantt_labels(label, labels)
             labels.append(label)
             value = str(self.data[v]['value'])
@@ -795,8 +806,9 @@ class Data:
         other_labels = None
         if self.other_gantt_label:
             other_labels = other
-        pd_gantt.plotGantt(labels, dates, pred, tstat, show_cdf=self.show_cdf, other_labels=other_labels)
-        if self.show_color_bar:
+        show_cdf = self.show_cdf and self.Records.status[0].lower() != 'late'
+        pd_gantt.plotGantt(labels, dates, pred, tstat, show_cdf=show_cdf, other_labels=other_labels)
+        if self.show_color_bar and self.Records.status[0].lower() != 'late':
             colorBar()
 
     def check_ganttable_status(self, status, valuetime):

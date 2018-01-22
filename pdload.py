@@ -1,15 +1,21 @@
 from __future__ import absolute_import, division, print_function
+import os.path
 try:
     import code_path
     base_code_path = code_path.set('ProjectData')
 except ImportError:
     import sys
-    sys.path.append('<<<relevant-path-to-code>>>')
+    base_code_path = raw_input('Full path to ProjectData code:  ')
+    if os.path.exists(os.path.joing(base_code_path, 'Data_class.py')):
+        sys.path.append(base_code_path)
 import Data_class
-# import Arch_class
-# import Cost_class
 
-available_db = Data_class.pd_utils.get_db_json('databases.json').keys()
+available_db = sorted(Data_class.pd_utils.get_db_json('databases.json').keys())
+if 'architecture' in available_db:
+    import Arch_class
+if 'cost' in available_db:
+    import Cost_class
+
 print ("Read in:")
 for db in available_db:
     if db == 'milestone':
@@ -25,15 +31,15 @@ for db in available_db:
         wb.concatDat([mi, ta])
         print("wb : mi+ta=wbs")
     elif db == 'reqspec':
-        rs = Data_class.Data('reqspec')
+        rs = Data_class.Data('reqspec', verbose=False)
         rs.readData()
         print("rs : reqspec")
     elif db == 'risk':
-        ri = Data_class.Data('risk')
+        ri = Data_class.Data('risk', verbose=False)
         ri.readData()
         print("ri : risk")
     elif db == 'interface':
-        ic = Data_class.Data('interface')
+        ic = Data_class.Data('interface', verbose=False)
         ic.readData()
         print("ic : interface")
     elif db == 'architecture':
@@ -41,7 +47,28 @@ for db in available_db:
         ar.readData()
         print("ar : Architecture")
     elif db == 'cost':
-        co = Cost_class.Cost()
+        co = Cost_class.Cost(verbosity=False)
         co.getCost()
         co.getBudget()
         print("co : Cost")
+
+print("Courtesy function: gref")
+
+
+def gref(v, search='description'):
+    """
+    Shortcut function to get and show a record from its description.
+    """
+    k = mi.getref(v, search)
+    mi.show(k)
+    return k
+
+
+project_name = raw_input('Project:  ')
+
+if project_name.lower()[0] == 'h':
+    mi.set_state(description_length=65)
+    mi.set_state(default_find_dtype=['nsfB'])
+elif project_name.lower()[0] == 'b':
+    mi.set_state(gantt_label_prefix='other')
+    mi.set_state(default_find_dtype=['T1', 'T2'])

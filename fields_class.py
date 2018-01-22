@@ -5,7 +5,7 @@ class Records_fields:
     def __init__(self):
         self.required = ['refname', 'value', 'description', 'dtype', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
         self.find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
-        self.pass_thru = ['any', 'all', 'n/a', -1]  # do all if one of these
+        self.pass_thru = ['any', 'all', 'n/a', '-1', -1]  # do all if one of these
 
     def set_find_default(self):
         self.dtype = ['all']
@@ -14,7 +14,14 @@ class Records_fields:
         self.status = ['all']
         self.id = [-1]
 
-    def find_filter(self, Finding, rec, status):
+    def filter_field(self, finding, val):
+        for ifind in finding:
+            sfnd = str(ifind).lower()
+            if (sfnd in self.pass_thru) or (sfnd in val):
+                return True
+        return False
+
+    def filter_rec(self, Finding, rec, status):
         """
         Steps through the self.find_allowed as filter.
         Parameters:
@@ -23,37 +30,12 @@ class Records_fields:
         rec:  is one record of Data_class
         status:  is the status as returned by check_ganttable_status
         """
-        owner = (rec['owner'] if rec['owner'] is not None else [])
-        if isinstance(owner, str):
-            owner = [owner]
-        owner = [x.lower() for x in owner]
-        owner_ok = False
-        for i_owner in Finding.owner:
-            owner_ok = (i_owner.lower() in self.pass_thru) or (i_owner.lower() in owner)
-            if owner_ok:
-                break
-        dtype = str(rec['dtype']).lower()
-        dtype_ok = False
-        for i_dtype in Finding.dtype:
-            if (i_dtype.lower() in self.pass_thru) or (i_dtype.lower() == dtype):
-                dtype_ok = True
-                break
-        other = str(rec['other']).lower()
-        other_ok = False
-        for i_other in Finding.other:
-            if (i_other.lower() in self.pass_thru) or (i_other.lower() == other):
-                other_ok = True
-                break
-        status = status[0].lower()
-        status_ok = False
-        for i_status in Finding.status:
-            if (i_status.lower() in self.pass_thru) or (i_status.lower() == status):
-                status_ok = True
-                break
-        rid = rec['id']
-        id_ok = False
-        for i_id in Finding.id:
-            if i_id in self.pass_thru or i_id == rid:
-                id_ok = True
-                break
-        return owner_ok and dtype_ok and other_ok and status_ok and id_ok
+        for field in self.find_allowed:
+            finding = getattr(Finding, field)
+            if field == 'status':
+                val = status[0].lower()
+            else:
+                val = str(rec[field]).lower()
+            if not self.filter_field(finding, val):
+                return False
+        return True
