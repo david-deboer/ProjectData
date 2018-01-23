@@ -1,0 +1,23 @@
+This is an "interactive" HERA milestone viewer.
+
+From within the directory run within Ipython.
+
+in Ipython type:  
+
+In [1]:  from msview import *
+
+then, e.g. to see milestones for commissioning up to September 1, 2018 type:
+
+In [2]:  mi.find('18/09/01', owner='comm')
+
+to see e.g. analysis milestones that are late between 1/1/18 - 3/1/18:
+
+In [3]:  mi.find('18/01/01', '18/03/01', status='late'
+
+to see more info on a milestone description from gantt,
+
+In [4]:  mi.show(mi.getref('This is a description'))
+
+to get an output ('fileout.csv') file, e.g. for pspec up to 1/1/19
+
+In [5]:  mi.find('19/01/01', owner='psp', display='file')
