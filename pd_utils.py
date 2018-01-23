@@ -83,6 +83,11 @@ def make_handle(refname):
     return handle
 
 
+def make_refname(description, length=30):
+    ref = description.replace(' ', '').replace('\"', '').lower()[:length]
+    return ref
+
+
 def money(v, a=2, d='$'):
     """I thought about using e.g. pyMoney etc, but overkill and others
        would have to download the package...

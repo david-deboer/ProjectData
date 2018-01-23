@@ -403,16 +403,28 @@ class Data:
         return None
 
 # ##################################################################UPDATE##################################################################
-    def new(self, refname, dt=None, updater=None, upnote=None, **kwargs):
-        """Adds a new record (essentially a wrapper for update which enables new)
+    def new(self, refname=None, dt=None, updater=None, upnote=None, **kwargs):
+        """Adds a new record (essentially a wrapper for update which generates a refname and enables new)
         """
         self.__enable_new_entry = True
         if 'refname' in kwargs.keys():
-            print("New entries shouldn't include 'refname' in the field/value entries.")
-            print("Not adding record.")
-            return False
-        self.update(refname, dt, updater, upnote, kwargs)  # Make sure they match!
+            print("New entries shouldn't include 'refname' in the kwargs entries.\nNot adding record.")
+            return
+        if 'description' not in kwargs.keys():
+            print("New entries must include a description.\nNot adding record.")
+            return
+        if refname is None:
+            refname_len = 30
+            refname = pd_utils.make_refname(kwargs['description'], refname_len)
+            while refname in self.data.keys():
+                refname_len += 5
+                if refname_len > 80:
+                    print("Not unique description:  {}\nNot adding record.".kwargs['description'])
+                    return
+                refname = pd_utils.make_refname(kwargs['description'], refname_len)
+        self.update(refname, dt, updater, upnote, **kwargs)  # Make sure they match!
         self.__enable_new_entry = False
+        return
 
     def update(self, refname, dt=None, updater=None, upnote=None, **kwargs):
         """Updates a record field as well as the updated db, adds if not present
@@ -651,21 +663,21 @@ class Data:
             status = self.data[name]['status']
             commentary = self.data[name]['commentary']
             s = '({}) {}     (\\def\\{})\n'.format(idno, name, handle)
-            s += '\tValue:       {}\n'.format(value)
-            s += '\tDescription: {}\n'.format(description)
-            s += '\tType:        {}\n'.format(dtype)
-            s += '\tStatus:      {}\n'.format(status)
-            s += '\tNotes:       {}\n'.format(notes)
-            s += '\tOwner:       '
+            s += '\tvalue:       {}\n'.format(value)
+            s += '\tdescription: {}\n'.format(description)
+            s += '\tdtype:        {}\n'.format(dtype)
+            s += '\tstatus:      {}\n'.format(status)
+            s += '\tnotes:       {}\n'.format(notes)
+            s += '\towner:       '
             if owner:
                 for o in owner:
                     s += (o + ', ')
                 s = s.strip().strip(',')
             s += '\n'
             if other:
-                s += '\tOther:       {}\n'.format(other)
+                s += '\tother:       {}\n'.format(other)
             if commentary:
-                s += '\tCommentary:  {}\n'.format(commentary)
+                s += '\tcommentary:  {}\n'.format(commentary)
             # ---1---# implement this later for all tracetypes
 # #            if self.dbtype!='reqspec':
 # #                dirName = dbTypes['reqspec'][dbEM['dirName']]
