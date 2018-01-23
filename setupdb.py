@@ -98,6 +98,7 @@ class Database:
             V[s] = ''
         fin = open('generated_input_file.txt', 'w')
         found_refs = []
+        idno = 1
         with open(sloppy_file, 'r') as f:
             for line in f:
                 if line[0] == '#' or not len(line):  # Comment or blank
@@ -112,7 +113,7 @@ class Database:
                             sys.exit(1)
                         found_refs.append(ref)
                         for s in V.keys():
-                            if s == 'refname' or not len(V[s]):
+                            if s == 'refname' or not len(V[s]):  # Don't need redundant refname info
                                 continue
                             fld = s
                             if s == 'value':
@@ -121,6 +122,9 @@ class Database:
                             else:
                                 val = V[s]
                             fin.write("{} | {} | {} | {}\n".format(tbl, ref, fld, val))
+                        if tbl == 'records':
+                            fin.write("{} | {} | {} | {}\n".format(tbl, ref, 'id', idno))
+                            idno += 1
                         tbl = 'updated'
                         for u in updated_table.keys():
                             fld = u

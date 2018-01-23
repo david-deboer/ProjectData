@@ -26,9 +26,9 @@ class Records_fields:
         Steps through the self.find_allowed as filter.
         Parameters:
         -----------
-        Finding:  is a class Records_fields that has the search terms (as initially set in set_find_defaults)
+        Finding:  is a class Records_fields that has the search terms (as initially set in self.set_find_defaults)
         rec:  is one record of Data_class
-        status:  is the status as returned by check_ganttable_status
+        status:  is the status as returned by Data_class.check_ganttable_status
         """
         for field in self.find_allowed:
             finding = getattr(Finding, field)

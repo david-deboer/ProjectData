@@ -52,17 +52,6 @@ for db in available_db:
         co.getBudget()
         print("co : Cost")
 
-print("Courtesy function: gref")
-
-
-def gref(v, search='description'):
-    """
-    Shortcut function to get and show a record from its description.
-    """
-    k = mi.getref(v, search)
-    mi.show(k)
-    return k
-
 
 project_name = raw_input('Project:  ')
 
@@ -70,5 +59,6 @@ if project_name.lower()[0] == 'h':
     mi.set_state(description_length=65)
     mi.set_state(default_find_dtype=['nsfB'])
 elif project_name.lower()[0] == 'b':
+    mi.set_state(description_length=65)
     mi.set_state(gantt_label_prefix='other')
     mi.set_state(default_find_dtype=['T1', 'T2'])

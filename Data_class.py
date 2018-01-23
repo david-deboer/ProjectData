@@ -255,17 +255,17 @@ class Data:
             match:  strength of match (weak, moderate, strong, verystrong) [weak]
             display:  how to return data ('show'/'listing'/'gantt'/'file')  [gantt]
             return_list: if True, will return the list [False]
-            kwargs:  one of the following records table fields - dtype, status, owner, other, id"""
+            kwargs:  one of the following records table fields upon which to filter - dtype, status, owner, other, id"""
 
         # Set defaults and run through kwarg filters
         self.Records.set_find_default()
-        if self.default_find_dtype:
+        if self.default_find_dtype:  # Change dtype filter if state variable set
             self.Records.dtype = self.default_find_dtype
         for k in kwargs.keys():
             if k in self.Records.find_allowed:
                 if isinstance(kwargs[k], str) or isinstance(kwargs[k], int):
                     setattr(self.Records, k, [kwargs[k]])
-                else:
+                else:  # Assume it's a list
                     setattr(self.Records, k, kwargs[k])
             else:
                 print('keyword {} not allowed'.format(k))
