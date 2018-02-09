@@ -1,4 +1,5 @@
 from __future__ import absolute_import, print_function
+import pd_utils
 
 
 class Records_fields:
@@ -39,3 +40,18 @@ class Records_fields:
             if not self.filter_field(finding, val):
                 return False
         return True
+
+    def filter_on_updates(self, match, v1time, v2time, rec):
+        """
+        Filter on the updated table.
+        """
+        event, timing = match.split()
+        if not rec[event]:
+            return False
+        if timing.lower() == 'before':
+            return rec[event] <= v2time
+        if timing.lower() == 'after':
+            return rec[event] >= v2time
+        if timing.lower() == 'between':
+            return rec[event] >= v1time and rec[event] <= v2time
+        return False

@@ -4,6 +4,9 @@ import time
 
 
 def get_time(timestr):
+    if timestr is None:
+        return None
+    timestr = timestr.strip()
     try:
         timeval = time.strptime(timestr, '%y/%m/%d')
     except ValueError:

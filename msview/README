@@ -16,7 +16,7 @@ In [3]:  mi.find('18/01/01', '18/03/01', status='late'
 
 to see more info on a milestone description from gantt,
 
-In [4]:  mi.show(mi.getref('This is a description'))
+In [4]:  mi.getref('This is a description')
 
 to get an output ('fileout.csv') file, e.g. for pspec up to 1/1/19
 

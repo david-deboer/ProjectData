@@ -1,5 +1,5 @@
 from __future__ import absolute_import, division, print_function
-import os.path
+import os
 try:
     import code_path
     base_code_path = code_path.set('ProjectData')
@@ -52,12 +52,16 @@ for db in available_db:
         co.getBudget()
         print("co : Cost")
 
-
-project_name = raw_input('Project:  ')
+cwd = os.getcwd().lower()
+if 'hera' in cwd:
+    project_name = 'HERA'
+elif 'breakthroughlisten' in cwd:
+    project_name = 'BreakthroughListen'
+print("\nSetting defaults for {}".format(project_name))
 
 if project_name.lower()[0] == 'h':
     mi.set_state(description_length=65)
-    mi.set_state(default_find_dtype=['nsfB'])
+    mi.set_state(default_find_dtype=['nsfB', 'internal'])
 elif project_name.lower()[0] == 'b':
     mi.set_state(description_length=65)
     mi.set_state(gantt_label_prefix='other')

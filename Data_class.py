@@ -48,7 +48,7 @@ class Data:
         self.caption = self.dbTypes[dbtype]['caption']
         self.init_state_variables()
         if verbose:
-            self.show_state_var()
+            self.show_state()
         self.cache_lower_data_keys = []
         self.__enable_new_entry = False
 
@@ -77,7 +77,7 @@ class Data:
             else:
                 print('state_var [{}] not found.'.format(k))
 
-    def show_state_var(self):
+    def show_state(self):
         print("State variables")
         for k in self.state_vars:
             print('\t{}:  {}'.format(k, getattr(self, k)))
@@ -155,9 +155,17 @@ class Data:
             qdb_exec = "SELECT * FROM updated WHERE refname='{}' COLLATE NOCASE ORDER BY level".format(refname)
             qdb.execute(qdb_exec)
             updates = qdb.fetchall()
-            entry['updated'] = []
+            entry['updates'] = []
+            latest = pd_utils.get_time(self.projectStart)
+            entry['initialized'] = None
             for v in updates:
-                entry['updated'].append([v[1], v[2], v[3]])
+                entry['updates'].append([v[1], v[2], v[3]])
+                updtime = pd_utils.get_time(v[1])
+                if 'init' in v[3].lower():
+                    entry['initialized'] = updtime
+                if updtime > latest:
+                    latest = updtime
+            entry['updated'] = updtime
             # ...put in data dictionary if not a duplicate
             if refname.lower() in self.cache_lower_data_keys:
                 refname = self.find_matching_refname(refname)
@@ -252,7 +260,13 @@ class Data:
             value: value for which to search
             value2: second value if used e.g. for bounding dates [None]
             field:  field in which to search (or 'any'/'all')  [value]
-            match:  strength of match (weak, moderate, strong, verystrong) [weak]
+            match:  strength of match (weak, moderate, strong, verystrong) [weak] or timing of updates
+                    'updated before'      <value>
+                    'updated after'       <value>
+                    'updated between'     <value> - <value2>
+                    'initialized before'  <value>
+                    'initialized after'   <value>
+                    'initialized between' <value> - <value2>
             display:  how to return data ('show'/'listing'/'gantt'/'file')  [gantt]
             return_list: if True, will return the list [False]
             kwargs:  one of the following records table fields upon which to filter - dtype, status, owner, other, id"""
@@ -294,8 +308,12 @@ class Data:
                     continue
                 status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
                 if rec.filter_rec(self.Records, self.data[dat], status):
-                    if timevalue >= value1time and timevalue <= value2time:
-                        foundrec.append(dat)
+                    if 'upda' in match.lower() or 'init' in match.lower():
+                        if rec.filter_on_updates(match, value1time, value2time, self.data[dat]):
+                            foundrec.append(dat)
+                    else:
+                        if timevalue >= value1time and timevalue <= value2time:
+                            foundrec.append(dat)
         else:
             for dat in self.data.keys():
                 foundType = False
@@ -327,11 +345,12 @@ class Data:
         if return_list:
             return foundrec
 
-    def list_unique(self, field, filter_on=[], returnList=False):
+    def list_unique(self, field, filter_on=None, returnList=False):
         unique_values = []
         for dat in self.data.keys():
             if filter_on:
-                if self.data[dat][filter_on[0]].lower() != filter_on[1].lower():
+                fld, val = filter_on.split('=')
+                if self.data[dat][fld.strip().lower()].lower() != val.strip().lower():
                     continue
             chk = self.data[dat][field]
             if chk is None:
@@ -657,7 +676,7 @@ class Data:
                 continue
             owner = self.data[name]['owner']
             other = self.data[name]['other']
-            updated = self.data[name]['updated']
+            updated = self.data[name]['updates']
             notes = self.data[name]['notes']
             idno = self.data[name]['id']
             status = self.data[name]['status']
