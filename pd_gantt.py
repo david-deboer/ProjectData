@@ -56,14 +56,14 @@ def get_key(p, task_dates):
     return None
 
 
-def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf=True, other_labels=None):
+def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=True, other_labels=None):
     """This will plot a gantt chart of items (ylabels) and dates.
-       If included, it will plot percent_complete for tasks and color code for milestones
-       (note, if included, it must have a percent_complete entry for every label)
+       If included, it will plot percent complete for tasks and color code for milestones
+       (note, if included, it must have a status_codes entry for every label)
        If included, it will connect predecessors (note, if included, it also must have an entry for every ylabel)
        other_labels prints another label by the entry (to right on plot), it also must have an entry for every ylabel"""
     # Check data
-    if len(ylabels) != len(dates) or percent_complete is not None and len(percent_complete) != len(ylabels):
+    if len(ylabels) != len(dates) or status_codes is not None and len(status_codes) != len(ylabels):
         print 'Data not in correct format.'
         return 0
     # Get dates in right format and find extrema
@@ -110,15 +110,12 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
     for i in range(0, len(ylabels)):
         start_date, end_date = task_dates[ylabels[i]]
         if start_date == end_date:  # Milestone
-            clr = percent_complete[i]
+            clr = status_codes[i][1]
             mkr = 'D'
             plt.plot(end_date, i * step + ymin, mkr, color=clr, markersize=8)
         else:
+            print("Should use the percent complete status_codes for color etc.")
             plt.barh(i * step + ymin, end_date - start_date, left=start_date, height=0.3, align='center', color='blue', alpha=0.75)
-            # if percent_complete is not None and percent_complete[i]>0.0:
-            #     plt.barh(i*step+ymin, (end_date - start_date)*percent_complete[i], left=start_date, height=0.15, align='center', color='red', alpha = 0.75)
-            # ax.barh((i*0.5)+0.5+0.05, (end_date - start_date)*studentEffort, left=start_date, height=0.1, align='center', color='yellow', alpha = 0.75)
-            # ax.barh((i*0.5)+1.0, end_date - mid_date, left=mid_date, height=0.3, align='center',label=labels[1], color='yellow')
 
     # Format the y-axis
     pos = np.arange(ymin, ymax + step / 2.0, step)  # add the step/2.0 to get that last value
@@ -128,8 +125,8 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
 
     # Plot current time
     now = dt.datetime.now()
-    mdate = matplotlib.dates.date2num(now)
-    plt.plot([mdate, mdate], [ymin - step, ymax + step], 'k--')
+    now_date = matplotlib.dates.date2num(now)
+    plt.plot([now_date, now_date], [ymin - step, ymax + step], 'k--')
 
     # Plot other_labels if present
     if other_labels is not None:
@@ -173,26 +170,28 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
     plt.tight_layout()
 
     # ##---If plotting cdf---###
-    if show_cdf:  # First get total completed and check if milestones
+    if show_cdf:  # First get total number of milestones
         cdf_tot = 0.0
         for i in range(0, len(ylabels)):
             start_date, end_date = task_dates[ylabels[i]]
             if start_date == end_date:  # Milestone
-                if percent_complete[i] != 'w':
+                if start_date > now_date:
+                    continue
+                if status_codes[i][0] != 'removed':
                     cdf_tot += 1.0
             else:
                 print 'NOT MILESTONE'
                 show_cdf = False
                 break
     if show_cdf:
-        cx_dat = np.arange(date_min, mdate, 1.0)
+        cx_dat = np.arange(date_min, now_date, 1.0)
         cy_dat = []
         # DO IN DUMBEST BRUTE FORCE WAY IMAGINABLE
         for xd in cx_dat:
             ctr = 0.0
             for i in range(0, len(ylabels)):
                 start_date, end_date = task_dates[ylabels[i]]
-                if xd > start_date and type(percent_complete[i]) is tuple:
+                if xd > start_date and status_codes[i][0] == 'complete':
                     ctr += 1.0
             cy_dat.append(ctr)  # /len(ylabels))
         cy_dat = np.array(cy_dat)

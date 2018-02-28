@@ -27,7 +27,7 @@ class Data:
         self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                              'noshow': self.noshow, 'file': self.fileout}
         self.ganttable_status = {'removed': 'w',  # see check_ganttable_status
-                                 'late': 'red',  # 'darkorange'
+                                 'late': 'r',
                                  'moved': 'y',
                                  'notyet': 'k',
                                  'none': 'k',
@@ -301,6 +301,7 @@ class Data:
                         if timevalue >= value1time and timevalue <= value2time:
                             foundrec.append(dat)
         else:
+            print("This code isn't really checkout out for non-gantt stuff...")
             for dat in self.data.keys():
                 foundType = False
                 if dtype.lower() in pthru and self.data[dat]['dtype'].lower() != 'na':
@@ -816,7 +817,7 @@ class Data:
             dates.append(value)
             other.append(othlab)
             status_return = self.check_ganttable_status(status, value)
-            tstat.append(status_return[1])
+            tstat.append(status_return)
         if not self.plot_predecessors:
             pred = None
         other_labels = None
