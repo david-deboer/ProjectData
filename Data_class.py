@@ -3,7 +3,6 @@ from __future__ import absolute_import, print_function
 import os
 from operator import itemgetter
 import subprocess
-import math
 import sqlite3
 import datetime
 import time
@@ -243,7 +242,7 @@ class Data:
 
 # ##################################################################FIND##################################################################
     def find(self, value, value2=None, field='value', match='weak', display='gantt', return_list=False, **kwargs):
-        """This will find records matching value1, except for milestones which looks between value1,value2 dates (time format is yy/m/d)
+        """This will find records matching value, except for milestones which looks between value,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used e.g. for bounding dates [None]
             field:  field in which to search (or 'any'/'all')  [value]
@@ -826,7 +825,7 @@ class Data:
         show_cdf = self.show_cdf and self.Records.status[0].lower() != 'late'
         pd_gantt.plotGantt(labels, dates, pred, tstat, show_cdf=show_cdf, other_labels=other_labels)
         if self.show_color_bar and self.Records.status[0].lower() != 'late':
-            colorBar()
+            pd_gantt.colorBar()
 
     def check_ganttable_status(self, status, valuetime):
         if status is None or status.lower() == 'no status' or not len(status):
@@ -862,7 +861,7 @@ class Data:
             status_code = 'late'
             tcode = self.ganttable_status[status_code]
         elif status_code == 'complete':
-            tcode = lag2rgb(lag)
+            tcode = pd_gantt.lag2rgb(lag)
         return (status_code, tcode)
 
     def sortby(self, sb):
@@ -877,53 +876,3 @@ class Data:
         for k in sk:
             sl.append(k[0])
         return sl
-
-
-# ########################################################################################################################################
-def colorBar():
-    fff = plt.figure('ColorBar')
-    ax = fff.add_subplot(111)
-    ax.set_yticklabels([])
-    plt.xlabel('Days')
-    for j in range(180):
-        i = j - 90.0
-        c = lag2rgb(i)
-        plt.plot([i], [1.0], 's', markersize=20, color=c, markeredgewidth=0.0, fillstyle='full')
-    ar = plt.axis()
-    boxx = [ar[0], ar[1], ar[1], ar[0], ar[0]]
-    boxy = [-5.0, -5.0, 6.0, 6.0, -5.0]
-    plt.plot(boxx, boxy, 'k')
-    plt.axis('image')
-
-
-def colorCurve():
-    plt.figure('ColorCurve')
-    plt.xlabel('Days')
-    for j in range(180):
-        i = j - 90.0
-        c = lag2rgb(i)
-        plt.plot(i, c[0], 'r.')
-        plt.plot(i, c[1], 'g.')
-        plt.plot(i, c[2], 'b.')
-
-
-def lag2rgb(lag):
-    if lag < -90.0:
-        c = (0.0, 1.0, 0.0)
-    elif lag > 90.0:
-        c = (0.0, 0.0, 1.0)
-    else:
-        r = 0.0
-        if lag > -85.0:
-            a = 2.0 * (90.0)**2
-            b = math.exp(-(lag - 90.0)**2 / a)
-            r = 0.5 * math.exp(-(lag - 90.0)**2 / a)
-        else:
-            b = 0.0
-        if lag < 85.0:
-            a = 2.0 * (90.0)**2
-            g = math.exp(-(lag + 90.0)**2 / a)
-        else:
-            g = 0.0
-        c = (r, g, b)
-    return c
