@@ -22,7 +22,7 @@ class Data:
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
            a number of tex files.  See README and Architecture.dat
                dbtype is the type of database [milestones, reqspecs, interfaces, risks]
-               self.data is the "internal" database and self.db is the read-in sqlite3 database
+               self.data is the "internal" database
                sql_map are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
                each db file has the following tables (dbtype, trace, type, updated)"""
         self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
@@ -49,7 +49,6 @@ class Data:
         self.init_state_variables()
         if verbose:
             self.show_state()
-        self.cache_lower_data_keys = []
         self.__enable_new_entry = False
 
     def init_state_variables(self):
@@ -111,28 +110,22 @@ class Data:
             if r not in sm.keys():
                 raise ValueError("{} column not found in {}.".format(r, inFile))
 
-        self.sql_map = sm
         dbconnect = sqlite3.connect(inFile)
         qdb = dbconnect.cursor()
 
         # get allowed types
         qdb_exec = "SELECT * FROM types"
         qdb.execute(qdb_exec)
-        db = qdb.fetchall()
         allowedTypes = []
-        for t in db:
+        for t in qdb.fetchall():
             allowedTypes.append(str(t[0]).lower())
-        self.allowedTypes = allowedTypes
-
-        # get all records in dbtype database table
-        qdb_exec = "SELECT * FROM records ORDER BY id"
-        qdb.execute(qdb_exec)
-        db = qdb.fetchall()
 
         # put database records into data dictionary (records/trace tables)
+        qdb_exec = "SELECT * FROM records ORDER BY id"
+        qdb.execute(qdb_exec)
         data = {}
-        self.cache_lower_data_keys = []
-        for rec in db:
+        self.cache_lower_data_keys = set()
+        for rec in qdb.fetchall():
             refname = rec[sm['refname'][0]]
             # ...get a single entry
             entry = {}
@@ -147,18 +140,17 @@ class Data:
                 fieldName = tracetype + 'Trace'
                 qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and tracetype='{}' ORDER BY tracename".format(refname, tracetype)
                 qdb.execute(qdb_exec)
-                trace = qdb.fetchall()
                 entry[fieldName] = []
-                for v in trace:
+                for v in qdb.fetchall():
                     entry[fieldName].append(v[1])
             # ...read in updated table
             qdb_exec = "SELECT * FROM updated WHERE refname='{}' COLLATE NOCASE ORDER BY level".format(refname)
             qdb.execute(qdb_exec)
-            updates = qdb.fetchall()
             entry['updates'] = []
             latest = pd_utils.get_time(self.projectStart)
             entry['initialized'] = None
-            for v in updates:
+            updtime = None
+            for v in qdb.fetchall():
                 entry['updates'].append([v[1], v[2], v[3]])
                 updtime = pd_utils.get_time(v[1])
                 if 'init' in v[3].lower():
@@ -170,14 +162,13 @@ class Data:
             if refname.lower() in self.cache_lower_data_keys:
                 refname = self.find_matching_refname(refname)
                 existingEntry = data[refname]
-                print('name collision:  ' + refname)
-                print('--> not adding to data')
+                print('name collision:  {} --> not adding to data'.format(refname))
                 print('[\n', existingEntry)
                 print('\n]\n[\n', entry)
                 print('\n]')
             else:
                 data[refname] = entry
-                self.cache_lower_data_keys.append(refname.lower())
+                self.cache_lower_data_keys.add(refname.lower())
             # ...give warning if not in 'allowedTypes' (but keep anyway)
             if entry['dtype'] is not None and entry['dtype'].lower() not in allowedTypes:
                 print('Warning type not in allowed list for {}: {}'.format(refname, entry['dtype']))
@@ -189,28 +180,24 @@ class Data:
             fieldName = tracetype + 'Trace'
             qdb_exec = "SELECT * FROM trace where tracetype='{}' COLLATE NOCASE".format(tracetype)
             qdb.execute(qdb_exec)
-            trace = qdb.fetchall()
-            for t in trace:
+            for t in qdb.fetchall():
                 t_refname = t[0]
                 if t_refname.lower() not in self.cache_lower_data_keys:
                     print('{} not in data records:  {}'.format(fieldName, t[0]))
         # check Updated table to ensure that all refnames are valid
         qdb_exec = "SELECT * FROM updated"
         qdb.execute(qdb_exec)
-        updates = qdb.fetchall()
-        already_found = []
-        for u in updates:
+        for u in qdb.fetchall():
             u_refname = u[0]
-            if u_refname.lower() not in self.cache_lower_data_keys and u_refname not in already_found:
-                already_found.append(u_refname)
+            if u_refname.lower() not in self.cache_lower_data_keys:
                 print('updated not in data records:  ', u[0])
         dbconnect.close()
         if 'projectstart' in data.keys():
             self.projectStart = data['projectstart']['value']
             print('Setting project start to ' + self.projectStart)
         if selfVersion:
+            self.allowedTypes = allowedTypes
             self.data = data
-            self.db = db
             self.sql_map = sm
         return data
 
@@ -422,26 +409,31 @@ class Data:
         return None
 
 # ##################################################################UPDATE##################################################################
-    def new(self, refname=None, dt=None, updater=None, upnote=None, **kwargs):
+    def new(self, dt=None, updater=None, upnote=None, **kwargs):
         """Adds a new record (essentially a wrapper for update which generates a refname and enables new)
         """
         self.__enable_new_entry = True
-        if 'refname' in kwargs.keys():
-            print("New entries shouldn't include 'refname' in the kwargs entries.\nNot adding record.")
-            return
         if 'description' not in kwargs.keys():
             print("New entries must include a description.\nNot adding record.")
             return
-        if refname is None:
+        if 'value' not in kwargs.keys():
+            print("New entries must include a value.\nNot adding record.")
+            return
+        refname_maxlen = len(pd_utils.make_refname(kwargs['description'], -1))
+        if 'refname' in kwargs.keys():
+            refname = kwargs['refname']
+            refname_len = len(refname)
+            del kwargs['refname']
+        else:
             refname_len = 30
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
-            while refname in self.data.keys():
-                refname_len += 5
-                if refname_len > 80:
-                    print("Not unique description:  {}\nNot adding record.".kwargs['description'])
-                    return
-                refname = pd_utils.make_refname(kwargs['description'], refname_len)
-        self.update(refname, dt, updater, upnote, **kwargs)  # Make sure they match!
+        while refname in self.data.keys():
+            refname_len += 2
+            if refname_len > refname_maxlen:
+                print("Not unique description:  {}\nNot adding record.".kwargs['description'])
+                return
+            refname = pd_utils.make_refname(kwargs['description'], refname_len)
+        self.update(refname, dt, updater, upnote, **kwargs)
         self.__enable_new_entry = False
         return
 
@@ -459,40 +451,35 @@ class Data:
         changing = qdb.fetchall()
 
         # Checking new versus existing
-        ok_to_change = True
         new_entry = False
+        changed = False
         if len(changing) > 1:
-            print('Duplicated refname in ' + self.inFile + ' (' + refname + ')')
-            ok_to_change = False
-        elif not len(changing):  # Not present
+            print('No update: duplicated refname in ' + self.inFile + ' (' + refname + ')')
+            db.close()
+            return False
+        elif len(changing) == 1:
             if self.__enable_new_entry:
-                print('Adding new entry ' + refname)
-                qdb.execute("SELECT * FROM records ORDER BY id")
-                cnt = qdb.fetchall()
-                new_id = cnt[-1][self.sql_map['id'][0]] + 1  # works since we SORT BY id
-                kwargs['id'] = new_id
-                qdb.execute("INSERT INTO records(refname) VALUES (?)", (refname,))
-                changed = True
+                print("No update:  {} already exists, can't add it as new.".format(refname))
+                db.close()
+                return False
+            else:
+                refname = changing[0][self.sql_map['refname'][0]]
+        elif len(changing) == 0:
+            if self.__enable_new_entry:
+                print('Adding new entry {}'.format(kwargs['description'][:30]))
+                new_id = qdb.execute("SELECT MAX(id) as id FROM records").fetchone()[0] + 1
+                qdb.execute("INSERT INTO records(refname, id) VALUES (?,?)", (refname, new_id))
                 if upnote is None:
                     upnote = 'Initial'
                 db.commit()
+                changed = True
                 new_entry = True
             else:
-                print("{} not present to update.".format(refname))
-                ok_to_change = False
-        else:  # The refname exists and is unique
-            if self.__enable_new_entry:
-                print("{} already exists, can't add it as new.".format(refname))
-                ok_to_change = False
-            else:
-                refname = changing[0][self.sql_map['refname'][0]]
-        if not ok_to_change:
-            print("---returning without update---")
-            db.close()
-            return False
+                print("No update: {} not present to update.".format(refname))
+                db.close()
+                return False
 
         # Process it
-        changed = False
         for fld, new_value in kwargs.iteritems():
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
@@ -511,7 +498,11 @@ class Data:
                 print('{} is not a database field - skipping'.format(fld))
                 continue
             else:
-                print('\tChanging {}.{} to {}'.format(refname, fld, new_value))
+                if new_entry:
+                    desc = kwargs['description']
+                else:
+                    desc = self.data[refname]['description']
+                print('\tChanging {}.{} to {}'.format(desc[:20], fld, new_value))
                 qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value, refname)
                 qdb.execute(qdb_exec)
                 changed = True

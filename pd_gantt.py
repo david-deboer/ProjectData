@@ -41,6 +41,20 @@ def __create_date(yymmdd, return_triplet=False):
         return mdate
 
 
+def get_index(k, lbls):
+    for i, l in enumerate(lbls):
+        if k in l:
+            return i
+    return None
+
+
+def get_key(p, task_dates):
+    for k in task_dates.keys():
+        if p in k:
+            return k
+    return None
+
+
 def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf=True, other_labels=None):
     """This will plot a gantt chart of items (ylabels) and dates.
        If included, it will plot percent_complete for tasks and color code for milestones
@@ -129,12 +143,18 @@ def plotGantt(ylabels, dates, predecessors=None, percent_complete=None, show_cdf
             xk = task_dates[k][0]
             for p in predecessors[i]:
                 if len(p) > 0:
-                    j = ylabels.index(p)
+                    j = get_index(p, ylabels)
+                    if j is None:
+                        continue
                     yp = j * step + ymin
-                    xp = task_dates[p][1]
+                    k = get_key(p, task_dates)
+                    if k is None:
+                        continue
+                    xp = task_dates[k][1]
+                    # xp = task_dates[p][1]
                     ykp = [yk, yk, yp]
                     xkp = [xk, xp, xp]
-                    plt.plot(xkp, ykp, color='k')
+                    plt.plot(xkp, ykp, color='b', linewidth=3)
 
     ax.xaxis_date()  # Tell matplotlib that these are dates...
     rule = rrulewrapper(MONTHLY, interval=1)
