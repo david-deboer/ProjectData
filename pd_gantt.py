@@ -169,24 +169,25 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
     fig.autofmt_xdate()
     plt.tight_layout()
 
-    # ##---If plotting cdf---###
+    # ##---If plotting cdf, check to see if you should---###
     if show_cdf:  # First get total number of milestones
-        cdf_tot = 0.0
+        cdf_tot = 0
         for i in range(0, len(ylabels)):
             start_date, end_date = task_dates[ylabels[i]]
             if start_date == end_date:  # Milestone
                 if start_date > now_date:
                     continue
                 if status_codes[i][0] != 'removed':
-                    cdf_tot += 1.0
+                    cdf_tot += 1
             else:
                 print 'NOT MILESTONE'
                 show_cdf = False
                 break
+        if not cdf_tot:
+            cdf_tot = 1
     if show_cdf:
         cx_dat = np.arange(date_min, now_date, 1.0)
         cy_dat = []
-        # DO IN DUMBEST BRUTE FORCE WAY IMAGINABLE
         for xd in cx_dat:
             ctr = 0.0
             for i in range(0, len(ylabels)):

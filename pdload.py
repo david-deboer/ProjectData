@@ -10,6 +10,10 @@ except ImportError:
         sys.path.append(base_code_path)
 import Data_class
 
+# Shortcut for showing things not complete
+undone = ['late', 'moved', 'none', 'unknown']
+print('undone defined: ', undone)
+
 available_db = sorted(Data_class.pd_utils.get_db_json('databases.json').keys())
 if 'architecture' in available_db:
     import Arch_class

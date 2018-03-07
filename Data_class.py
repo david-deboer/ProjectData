@@ -29,9 +29,10 @@ class Data:
         self.ganttable_status = {'removed': 'w',  # see check_ganttable_status
                                  'late': 'r',
                                  'moved': 'y',
-                                 'notyet': 'k',
                                  'none': 'k',
-                                 'complete': 'b'}
+                                 'complete': 'b',
+                                 'unknown': 'm'}
+
         self.projectStart = projectStart
         self.dbtype = dbtype
         # Get db type data from json
@@ -51,14 +52,14 @@ class Data:
         self.__enable_new_entry = False
 
     def init_state_variables(self):
-        self.state_vars = ['show_cdf', 'description_length', 'gantt_label_to_use', 'other_gantt_label',
-                           'display_howsort', 'plot_predecessors', 'show_dtype', 'show_trace', 'show_color_bar',
-                           'output_filename', 'gantt_label_prefix', 'default_find_dtype']
+        self.state_vars = ['description_length', 'gantt_label_to_use', 'gantt_label_annot', 'gantt_label_prefix',
+                           'display_howsort', 'plot_predecessors', 'output_filename', 'default_find_dtype',
+                           'show_dtype', 'show_trace', 'show_color_bar', 'show_cdf']
         self.show_cdf = True
         self.show_color_bar = True
         self.description_length = 50
         self.gantt_label_to_use = 'description'
-        self.other_gantt_label = 'owner'
+        self.gantt_label_annot = 'owner'
         self.display_howsort = 'value'
         self.plot_predecessors = True
         self.show_dtype = 'all'
@@ -261,12 +262,12 @@ class Data:
         self.Records.set_find_default()
         if self.default_find_dtype:  # Change dtype filter if state variable set
             self.Records.dtype = self.default_find_dtype
-        for k in kwargs.keys():
+        for k, v in kwargs.iteritems():
             if k in self.Records.find_allowed:
-                if isinstance(kwargs[k], str) or isinstance(kwargs[k], int):
-                    setattr(self.Records, k, [kwargs[k]])
+                if isinstance(v, str) or isinstance(v, int):
+                    setattr(self.Records, k, [v])
                 else:  # Assume it's a list
-                    setattr(self.Records, k, kwargs[k])
+                    setattr(self.Records, k, v)
             else:
                 print('keyword {} not allowed'.format(k))
                 continue
@@ -502,7 +503,10 @@ class Data:
                     desc = kwargs['description']
                 else:
                     desc = self.data[refname]['description']
-                print('\tChanging {}.{} to {}'.format(desc[:20], fld, new_value))
+                ell = '(...)'
+                if len(desc) < 20:
+                    ell = ''
+                print('\tChanging {}{}.{} to "{}"'.format(desc[:20], ell, fld, new_value))
                 qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value, refname)
                 qdb.execute(qdb_exec)
                 changed = True
@@ -536,7 +540,10 @@ class Data:
             if new_entry:
                 full_upnote = upnote
             else:
-                full_upnote = upnote + ' :: <Previous note: ' + changing[0][self.sql_map['notes'][0]] + '>'
+                oldnote = changing[0][self.sql_map['notes'][0]]
+                if oldnote is None:
+                    oldnote = ''
+                full_upnote = upnote + ' :: <Previous note: ' + oldnote + '>'
             qv = (refname, dt, updater, full_upnote, new_update)
             qdb.execute(qdb_exec, qv)
             db.commit()
@@ -672,7 +679,8 @@ class Data:
             idno = self.data[name]['id']
             status = self.data[name]['status']
             commentary = self.data[name]['commentary']
-            s = '({}) {}     (\\def\\{})\n'.format(idno, name, handle)
+            # s = '({}) {}     (\\def\\{})\n'.format(idno, name, handle)
+            s = '({}) {}\n'.format(idno, name)
             s += '\tvalue:       {}\n'.format(value)
             s += '\tdescription: {}\n'.format(description)
             s += '\tdtype:        {}\n'.format(dtype)
@@ -706,7 +714,7 @@ class Data:
                     else:
                         for xxx in xxxTrace:
                             if len(xxx) > 0:
-                                s += '\t\t{}:  '.format(xxx)
+                                s += '\t\t{}\n:  '.format(xxx)
                                 # ---1---#
 # #                                try:
 # #                                    s+=(rsdata[rrr][self.entryMap['value']]+'\n')
@@ -772,8 +780,8 @@ class Data:
         if self.gantt_label_to_use not in self.Records.required:
             print("{} label not found to use.".format(self.gantt_label_to_use))
             return
-        if self.other_gantt_label and self.other_gantt_label not in self.Records.required:
-            print("{} other label not found to use.".format(self.other_gantt_label))
+        if self.gantt_label_annot and self.gantt_label_annot not in self.Records.required:
+            print("{} other label not found to use.".format(self.gantt_label_annot))
             return
         if self.gantt_label_prefix and self.gantt_label_prefix not in self.Records.required:
             print("{} prefix label not found to use.".format(self.gantt_label_prefix))
@@ -795,10 +803,10 @@ class Data:
             labels.append(label)
             value = str(self.data[v]['value'])
             status = str(self.data[v]['status']).lower().strip()
-            othlab = self.data[v][self.other_gantt_label]
-            if othlab is None:
-                othlab = ' '
+            if self.gantt_label_annot is None:
+                othlab = ''
             else:
+                othlab = self.data[v][self.gantt_label_annot]
                 othlab = pd_utils.stringify(othlab)
             predss = []
             if 'milestoneTrace' in self.data[v].keys():
@@ -821,7 +829,7 @@ class Data:
         if not self.plot_predecessors:
             pred = None
         other_labels = None
-        if self.other_gantt_label:
+        if self.gantt_label_annot:
             other_labels = other
         show_cdf = self.show_cdf and self.Records.status[0].lower() != 'late'
         pd_gantt.plotGantt(labels, dates, pred, tstat, show_cdf=show_cdf, other_labels=other_labels)
@@ -829,13 +837,23 @@ class Data:
             pd_gantt.colorBar()
 
     def check_ganttable_status(self, status, valuetime):
-        if status is None or status.lower() == 'no status' or not len(status):
-            status = 'none'
-        status = status.lower().split()
-        status_code = status[0]
-        tcode = self.ganttable_status['none']
-        if status_code in self.ganttable_status.keys():
-            tcode = self.ganttable_status[status_code]
+        """
+                self.ganttable_status = {'removed': 'w',
+                                         'late': 'r',
+                                         'moved': 'y',
+                                         'none': 'k',
+                                         'complete': 'b',
+                                         'unknown': 'm'}
+        """
+        # Get status_code
+        if status is None or status.lower()[:2] == 'no' or not len(status):
+            status_code = 'none'
+        else:
+            status = status.lower().split()
+            status_code = status[0]
+        if status_code not in self.ganttable_status.keys():
+            status_code = 'unknown'
+        tcode = self.ganttable_status[status_code]
         if status_code == 'removed':
             return (status_code, tcode)
 
