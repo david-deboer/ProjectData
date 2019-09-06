@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function
 import os
 try:
     import code_path
@@ -20,7 +19,8 @@ if 'architecture' in available_db:
 if 'cost' in available_db:
     import Cost_class
 
-print ("Read in:")
+
+print("Read in:")
 for db in available_db:
     if db == 'milestone':
         mi = Data_class.Data('milestone')
@@ -62,11 +62,22 @@ if 'hera' in cwd:
 elif 'breakthroughlisten' in cwd:
     project_name = 'BreakthroughListen'
 print("\nSetting defaults for {}".format(project_name))
+mi.set_state(description_length=65,
+             gantt_label_to_use='description',
+             gantt_label_annot=['owner'],
+             gantt_label_prefix=None,
+             display_howsort='value',
+             plot_predecessors=True,
+             output_filename='fileout.csv',
+             default_find_dtype=None,
+             show_trace=True,
+             show_color_bar=True,
+             show_cdf=True,
+             quiet_update=False)
 
-if project_name.lower()[0] == 'h':
-    mi.set_state(description_length=65)
-    mi.set_state(default_find_dtype=['nsfB', 'internal'])
-elif project_name.lower()[0] == 'b':
-    mi.set_state(description_length=65)
+if project_name == 'HERA':
+    mi.set_state(default_find_dtype=['nsfB'])
+    mi.set_state(gantt_label_annot=None)
+elif project_name == 'BreakthroughListen':
     mi.set_state(gantt_label_prefix='other')
-    mi.set_state(default_find_dtype=['T1', 'T2'])
+    mi.set_state(default_find_dtype=['T1', 'T1HW', 'T2'])

@@ -6,6 +6,7 @@ import subprocess
 import sqlite3
 import datetime
 import time
+import six
 import matplotlib.pyplot as plt
 #  Project specific modules
 import pd_gantt
@@ -15,7 +16,6 @@ import fields_class as FC
 
 class Data:
     db_json_file = 'databases.json'
-    Records = FC.Records_fields()
 
     def __init__(self, dbtype, projectStart='14/09/01', verbose=True):
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
@@ -32,7 +32,7 @@ class Data:
                                  'none': 'k',
                                  'complete': 'b',
                                  'unknown': 'm'}
-
+        self.Records = FC.Records_fields()
         self.projectStart = projectStart
         self.dbtype = dbtype
         # Get db type data from json
@@ -46,30 +46,27 @@ class Data:
         if self.dbTypes[dbtype]['traceable'] == 'True':
             self.traceables.append(dbtype)
         self.caption = self.dbTypes[dbtype]['caption']
-        self.init_state_variables()
-        if verbose:
-            self.show_state()
         self.__enable_new_entry = False
-
-    def init_state_variables(self):
-        self.state_vars = ['description_length', 'gantt_label_to_use', 'gantt_label_annot', 'gantt_label_prefix',
-                           'display_howsort', 'plot_predecessors', 'output_filename', 'default_find_dtype',
-                           'show_dtype', 'show_trace', 'show_color_bar', 'show_cdf']
-        self.show_cdf = True
-        self.show_color_bar = True
-        self.description_length = 50
-        self.gantt_label_to_use = 'description'
-        self.gantt_label_annot = 'owner'
-        self.display_howsort = 'value'
-        self.plot_predecessors = True
-        self.show_dtype = 'all'
-        self.default_find_dtype = None
-        self.show_trace = True
-        self.output_filename = 'fileout.csv'
-        self.gantt_label_prefix = None
+        self.state_var_defaults = {'description_length': 50,
+                                   'gantt_label_to_use': 'description',
+                                   'gantt_label_annot': ['owner'],
+                                   'gantt_label_prefix': None,
+                                   'display_howsort': 'value',
+                                   'plot_predecessors': True,
+                                   'output_filename': 'fileout.csv',
+                                   'default_find_dtype': None,
+                                   'show_trace': True,
+                                   'show_color_bar': True,
+                                   'show_cdf': True,
+                                   'quiet_update': False}
+        self.state_vars = list(self.state_var_defaults.keys())
+        print("NEED TO FIX @L63 Data_class")
+        #self.set_state(self.state_var_defaults)
+        #if verbose:
+        #    self.show_state()
 
     def set_state(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in six.iteritems(kwargs):
             if k in self.state_vars:
                 setattr(self, k, v)
                 print('Setting {} to {}'.format(k, v))
@@ -116,9 +113,9 @@ class Data:
         # get allowed types
         qdb_exec = "SELECT * FROM types"
         qdb.execute(qdb_exec)
-        allowedTypes = []
+        allowedTypes = {}
         for t in qdb.fetchall():
-            allowedTypes.append(str(t[0]).lower())
+            allowedTypes[str(t[0]).lower()] = t
 
         # put database records into data dictionary (records/trace tables)
         qdb_exec = "SELECT * FROM records ORDER BY id"
@@ -170,10 +167,10 @@ class Data:
                 data[refname] = entry
                 self.cache_lower_data_keys.add(refname.lower())
             # ...give warning if not in 'allowedTypes' (but keep anyway)
-            if entry['dtype'] is not None and entry['dtype'].lower() not in allowedTypes:
+            if entry['dtype'] is not None and entry['dtype'].lower() not in allowedTypes.keys():
                 print('Warning type not in allowed list for {}: {}'.format(refname, entry['dtype']))
                 print('Allowed types are:')
-                print(allowedTypes)
+                print(allowedTypes.keys())
 
         # check Trace table to ensure that all refnames are valid
         for tracetype in self.traceables:
@@ -241,8 +238,55 @@ class Data:
                 self.data[entry] = db.data[entry]
         fullcount -= overcount
 
+    def dtype_info(self, dtype='nsfB'):
+        dkey = dtype.lower()
+        if dkey not in self.allowedTypes.keys():
+            print("{} not found".format(dtype))
+            return None
+        name = self.allowedTypes[dkey][0]
+        description = self.allowedTypes[dkey][1]
+        dtdate = self.allowedTypes[dkey][2]
+        dtdur = self.allowedTypes[dkey][3]
+        print("Information for {}: {}".format(name, description))
+        if dtdate is not None:
+            print("\t{}  ".format(dtdate), end='')
+        if dtdur is not None:
+            print("{}  months".format(dtdur))
+        else:
+            print()
+        if (dtdate is not None) and (dtdur is not None):
+            sta = datetime.datetime.strptime(dtdate, '%y/%m/%d')
+            y_old = sta.year
+            d, m, y = (sta.day, (sta.month + dtdur) % 12, int(sta.year + (sta.month + dtdur) / 12))
+            end = datetime.datetime(y, m, d) - datetime.timedelta(1.0)
+            print('{}  -  {}'.format(datetime.datetime.strftime(sta, '%Y/%m/%d'), datetime.datetime.strftime(end, '%Y/%m/%d')))
+            proj_year = 0
+            for q in range(int(dtdur / 3.0)):
+                if not q % 4:
+                    proj_year += 1
+                if q % 4 == 0 or q % 4 == 3:
+                    py_sym = '-'
+                else:
+                    py_sym = ' '
+                py_sym = (2 + (proj_year + 1) % 2) * py_sym + str(proj_year)
+                d, m, y = (sta.day, (sta.month + q * 3) % 12, sta.year + int((sta.month + q * 3) / 12))
+                if not m:
+                    m = 12
+                    y -= 1
+                if y > y_old:
+                    y_old = y
+                    print("\t         ----------     ----------    " + ((proj_year + 1) % 2) * ' ' + str(proj_year))
+                qtr = datetime.datetime(y, m, d)
+                print("\tQtr {:2d}:  {}".format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
+                d, m, y = (sta.day, (sta.month + (q + 1) * 3) % 12, int(sta.year + (sta.month + (q + 1) * 3) / 12))
+                if not m:
+                    m = 12
+                    y -= 1
+                qtr = datetime.datetime(y, m, d) - datetime.timedelta(1.0)
+                print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
+
 # ##################################################################FIND##################################################################
-    def find(self, value, value2=None, field='value', match='weak', display='gantt', return_list=False, **kwargs):
+    def find(self, value, value2=None, field='value', match='weak', display='gantt', **kwargs):
         """This will find records matching value, except for milestones which looks between value,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used e.g. for bounding dates [None]
@@ -254,15 +298,14 @@ class Data:
                     'initialized before'  <value>
                     'initialized after'   <value>
                     'initialized between' <value> - <value2>
-            display:  how to return data ('show'/'listing'/'gantt'/'file')  [gantt]
-            return_list: if True, will return the list [False]
+            display:  how to return data ('show'/'listing'/'gantt'/'file'/'noshow') If noshow returns the list of keys
             kwargs:  one of the following records table fields upon which to filter - dtype, status, owner, other, id"""
 
         # Set defaults and run through kwarg filters
         self.Records.set_find_default()
-        if self.default_find_dtype:  # Change dtype filter if state variable set
+        if self.default_find_dtype is not None:  # Change dtype filter if state variable set
             self.Records.dtype = self.default_find_dtype
-        for k, v in kwargs.iteritems():
+        for k, v in six.iteritems(kwargs):
             if k in self.Records.find_allowed:
                 if isinstance(v, str) or isinstance(v, int):
                     setattr(self.Records, k, [v])
@@ -302,38 +345,39 @@ class Data:
                         if timevalue >= value1time and timevalue <= value2time:
                             foundrec.append(dat)
         else:
-            print("This code isn't really checkout out for non-gantt stuff...")
+            print("This code isn't really checked out out for non-gantt stuff...")
             for dat in self.data.keys():
-                foundType = False
-                if dtype.lower() in pthru and self.data[dat]['dtype'].lower() != 'na':
-                    foundType = True
-                elif dtype.lower() in self.data[dat]['dtype'].lower():
-                    foundType = True
-                if foundType:
-                    foundMatch = False
-                    if field.lower() in pthru:
-                        for fff in self.data[dat].keys():
-                            foundMatch = pd_utils.searchfield(value, self.data[dat][fff], match)
-                            if foundMatch:
-                                break
-                    elif field in self.data[dat].keys():
-                        foundMatch = pd_utils.searchfield(value, self.data[dat][field], match)
-                    else:
-                        print('Invalid field for search')
-                        return
-                    if foundMatch:
+                for fff in self.data[dat].keys():
+                    if pd_utils.searchfield(value, self.data[dat][fff], match):
                         foundrec.append(dat)
+                # foundType = False
+                # if dtype.lower() in pthru and self.data[dat]['dtype'].lower() != 'na':
+                #     foundType = True
+                # elif dtype.lower() in self.data[dat]['dtype'].lower():
+                #     foundType = True
+                # if foundType:
+                #     foundMatch = False
+                #     if field.lower() in pthru:
+                #         for fff in self.data[dat].keys():
+                #             foundMatch = pd_utils.searchfield(value, self.data[dat][fff], match)
+                #             if foundMatch:
+                #                 break
+                #     elif field in self.data[dat].keys():
+                #         foundMatch = pd_utils.searchfield(value, self.data[dat][field], match)
+                #     else:
+                #         print('Invalid field for search')
+                #         return
+                #     if foundMatch:
+                #         foundrec.append(dat)
         if len(foundrec):
             foundrec = self._getview(foundrec, self.display_howsort)
             if display not in self.displayTypes.keys():
                 display = 'listing'
-            self.displayTypes[display](foundrec)
+            return self.displayTypes[display](foundrec)
         else:
             print('No records found.')
-        if return_list:
-            return foundrec
 
-    def list_unique(self, field, filter_on=None, returnList=False):
+    def unique(self, field, filter_on=None, returnList=False):
         unique_values = []
         for dat in self.data.keys():
             if filter_on:
@@ -410,7 +454,7 @@ class Data:
         return None
 
 # ##################################################################UPDATE##################################################################
-    def new(self, dt=None, updater=None, upnote=None, **kwargs):
+    def add(self, dt=None, updater=None, upnote=None, **kwargs):
         """Adds a new record (essentially a wrapper for update which generates a refname and enables new)
         """
         self.__enable_new_entry = True
@@ -420,18 +464,18 @@ class Data:
         if 'value' not in kwargs.keys():
             print("New entries must include a value.\nNot adding record.")
             return
-        refname_maxlen = len(pd_utils.make_refname(kwargs['description'], -1))
+        refname_maxlen = len(pd_utils.make_refname(kwargs['description'], 1000))
         if 'refname' in kwargs.keys():
             refname = kwargs['refname']
             refname_len = len(refname)
             del kwargs['refname']
         else:
-            refname_len = 30
+            refname_len = 100
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
         while refname in self.data.keys():
             refname_len += 2
             if refname_len > refname_maxlen:
-                print("Not unique description:  {}\nNot adding record.".kwargs['description'])
+                print("Not unique description:  {}\nNot adding record.".format(kwargs['description']))
                 return
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
         self.update(refname, dt, updater, upnote, **kwargs)
@@ -467,7 +511,8 @@ class Data:
                 refname = changing[0][self.sql_map['refname'][0]]
         elif len(changing) == 0:
             if self.__enable_new_entry:
-                print('Adding new entry {}'.format(kwargs['description'][:30]))
+                if not self.quiet_update:
+                    print('Adding new entry {}'.format(kwargs['description'][:30]))
                 new_id = qdb.execute("SELECT MAX(id) as id FROM records").fetchone()[0] + 1
                 qdb.execute("INSERT INTO records(refname, id) VALUES (?,?)", (refname, new_id))
                 if upnote is None:
@@ -481,7 +526,7 @@ class Data:
                 return False
 
         # Process it
-        for fld, new_value in kwargs.iteritems():
+        for fld, new_value in six.iteritems(kwargs):
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
                 if ',' in new_value:
@@ -506,7 +551,8 @@ class Data:
                 ell = '(...)'
                 if len(desc) < 20:
                     ell = ''
-                print('\tChanging {}{}.{} to "{}"'.format(desc[:20], ell, fld, new_value))
+                if not self.quiet_update:
+                    print('\tChanging {}{}.{} to "{}"'.format(desc[:20], ell, fld, new_value))
                 qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value, refname)
                 qdb.execute(qdb_exec)
                 changed = True
@@ -534,9 +580,9 @@ class Data:
                 bbb = datetime.datetime.now()
                 dt = "{:02d}/{:02d}/{:02d}".format(bbb.year - 2000, bbb.month, bbb.day)
             if updater is None:
-                updater = raw_input("Who is updating:  ")
+                updater = six.moves.input("Who is updating:  ")
             if upnote is None:
-                upnote = raw_input("Update note to append previous record notes:  ")
+                upnote = six.moves.input("Update note to append previous record notes:  ")
             if new_entry:
                 full_upnote = upnote
             else:
@@ -603,7 +649,8 @@ class Data:
         return True
 
     def checkTrace(self, checkrec='all'):
-        print('checkTrace not implemented...')
+        if not self.quiet_update:
+            print('checkTrace not implemented...')
         return
         if checkrec == 'all':
             checkrec = self.data.keys()
@@ -668,10 +715,6 @@ class Data:
             value = self.data[name]['value']
             description = self.data[name]['description']
             dtype = self.data[name]['dtype']
-            if self.show_dtype.lower() == 'all' or self.show_dtype.lower() == dtype.lower():
-                pass
-            else:
-                continue
             owner = self.data[name]['owner']
             other = self.data[name]['other']
             updated = self.data[name]['updates']
@@ -736,7 +779,7 @@ class Data:
         if tag == 'csv':
             import csv
         view = self._getview(view, self.display_howsort)
-        with open(self.output_filename, 'wb') as output_file:
+        with open(self.output_filename, 'w') as output_file:
             if tag == 'csv':
                 s = ['value', 'description', 'owner', 'status', 'other', 'notes', 'commentary']
                 csvw = csv.writer(output_file)
@@ -767,9 +810,10 @@ class Data:
         for key in view:
             desc = self.data[key]['description']
             val = self.data[key]['value']
-            stat = self.data[key]['status']
+            stat = self.data[key]['status'].split()[0]
             owner = pd_utils.stringify(self.data[key]['owner'])
-            print('{:10.10} {:12.12} \t {:{d_l}} ({})'.format(val, owner, desc, key, d_l=desc_len))
+            # print('{:10.10} {:12.12} \t {:{d_l}} ({})'.format(val, owner, desc, key, d_l=desc_len))
+            print('{:10.10} {} ({})'.format(val, desc, stat))
 
     def gantt(self, view='all'):
         view = self._getview(view, self.display_howsort)
@@ -803,7 +847,7 @@ class Data:
             labels.append(label)
             value = str(self.data[v]['value'])
             status = str(self.data[v]['status']).lower().strip()
-            if self.gantt_label_annot is None:
+            if not self.gantt_label_annot:
                 othlab = ''
             else:
                 othlab = self.data[v][self.gantt_label_annot]
@@ -846,7 +890,7 @@ class Data:
                                          'unknown': 'm'}
         """
         # Get status_code
-        if status is None or status.lower()[:2] == 'no' or not len(status):
+        if status is None or status.lower().startswith('no') or not len(status):
             status_code = 'none'
         else:
             status = status.lower().split()
@@ -887,10 +931,12 @@ class Data:
         sortdict = {}
         for k in self.data:
             sdt = self.data[k][sb]
-            if type(sdt) == list:
+            if sdt is None:
+                sdt = ' '
+            elif isinstance(sdt, list):
                 sdt = sdt[0]
             sortdict[k] = sdt
-        sk = sorted(sortdict.items(), key=itemgetter(1, 0))
+        sk = sorted(six.iteritems(sortdict), key=itemgetter(1, 0))
         sl = []
         for k in sk:
             sl.append(k[0])

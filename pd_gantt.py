@@ -5,7 +5,7 @@ BHC 2014
 
 Adapted by ddeboer 6/Feb/2015
 """
-
+from __future__ import absolute_import, print_function
 import datetime as dt
 import math
 import matplotlib.pyplot as plt
@@ -27,7 +27,7 @@ def __create_date(yymmdd, return_triplet=False):
     """Creates the date from yy/mm/dd"""
     dlist = yymmdd.split('/')
     if len(dlist) < 3:
-        print 'error  ', dlist
+        print('error  ', dlist)
     if int(dlist[0]) < 1000:
         yr = 2000 + int(dlist[0])
     else:
@@ -64,7 +64,7 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
        other_labels prints another label by the entry (to right on plot), it also must have an entry for every ylabel"""
     # Check data
     if len(ylabels) != len(dates) or status_codes is not None and len(status_codes) != len(ylabels):
-        print 'Data not in correct format.'
+        print('Data not in correct format.')
         return 0
     # Get dates in right format and find extrema
     task_dates = {}
@@ -180,7 +180,7 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
                 if status_codes[i][0] != 'removed':
                     cdf_tot += 1
             else:
-                print 'NOT MILESTONE'
+                print('NOT MILESTONE')
                 show_cdf = False
                 break
         if not cdf_tot:

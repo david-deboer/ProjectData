@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import time
+import six
 
 
 def get_time(timestr):
@@ -29,7 +30,7 @@ def searchfield(value, infield, match):
     foundMatch = False
     if type(infield) == list:
         foundMatch = searchlist(value, infield, match)
-    elif type(infield) == str or type(infield) == unicode and type(value) == str:
+    elif isinstance(infield, six.string_types) and isinstance(value, six.string_types):
         value = value.strip()
         infield = infield.strip()
         if match == 'weak':
