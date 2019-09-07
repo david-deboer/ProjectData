@@ -1,5 +1,4 @@
 #! usr/bin/env python
-from __future__ import absolute_import, print_function
 import os
 from operator import itemgetter
 import subprocess
@@ -46,32 +45,45 @@ class Data:
         if self.dbTypes[dbtype]['traceable'] == 'True':
             self.traceables.append(dbtype)
         self.caption = self.dbTypes[dbtype]['caption']
-        self.__enable_new_entry = False
-        self.state_var_defaults = {'description_length': 50,
-                                   'gantt_label_to_use': 'description',
-                                   'gantt_label_annot': ['owner'],
-                                   'gantt_label_prefix': None,
-                                   'display_howsort': 'value',
-                                   'plot_predecessors': True,
+        self._enable_new_entry = False
+        self.state_var_defaults = {'gantt_label_length': 50,
+                                   'gantt_label': ['description'],
+                                   'gantt_annot': ['owner'],
+                                   'display_howsort': ['value'],
+                                   'find_dtype': [],
                                    'output_filename': 'fileout.csv',
-                                   'default_find_dtype': None,
+                                   'plot_predecessors': True,
                                    'show_trace': True,
                                    'show_color_bar': True,
                                    'show_cdf': True,
                                    'quiet_update': False}
         self.state_vars = list(self.state_var_defaults.keys())
-        print("NEED TO FIX @L63 Data_class")
-        #self.set_state(self.state_var_defaults)
-        #if verbose:
-        #    self.show_state()
+        self.state_initialized = False
+        self.set_state(**self.state_var_defaults)
+        if verbose:
+            self.show_state()
 
     def set_state(self, **kwargs):
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             if k in self.state_vars:
-                setattr(self, k, v)
-                print('Setting {} to {}'.format(k, v))
+                valid_set = True
+                def_var = self.state_var_defaults[k]
+                if isinstance(v, type(def_var)):
+                    setattr(self, k, v)
+                elif isinstance(v, str) and ',' in v:
+                    v = [x.strip() for x in v.split(',')]
+                elif isinstance(v, str) and isinstance(def_var, list):
+                    v = [v.strip()]
+                else:
+                    valid_set = False
+                if self.state_initialized:
+                    if valid_set:
+                        print('Setting {} to {}'.format(k, v))
+                    else:
+                        print("{}: {} invalid format".format(k, v))
             else:
                 print('state_var [{}] not found.'.format(k))
+        self.state_initialized = True
 
     def show_state(self):
         print("State variables")
@@ -303,8 +315,7 @@ class Data:
 
         # Set defaults and run through kwarg filters
         self.Records.set_find_default()
-        if self.default_find_dtype is not None:  # Change dtype filter if state variable set
-            self.Records.dtype = self.default_find_dtype
+        self.Records.dtype = self.find_dtype
         for k, v in six.iteritems(kwargs):
             if k in self.Records.find_allowed:
                 if isinstance(v, str) or isinstance(v, int):
@@ -457,7 +468,7 @@ class Data:
     def add(self, dt=None, updater=None, upnote=None, **kwargs):
         """Adds a new record (essentially a wrapper for update which generates a refname and enables new)
         """
-        self.__enable_new_entry = True
+        self._enable_new_entry = True
         if 'description' not in kwargs.keys():
             print("New entries must include a description.\nNot adding record.")
             return
@@ -479,7 +490,7 @@ class Data:
                 return
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
         self.update(refname, dt, updater, upnote, **kwargs)
-        self.__enable_new_entry = False
+        self._enable_new_entry = False
         return
 
     def update(self, refname, dt=None, updater=None, upnote=None, **kwargs):
@@ -503,14 +514,14 @@ class Data:
             db.close()
             return False
         elif len(changing) == 1:
-            if self.__enable_new_entry:
+            if self._enable_new_entry:
                 print("No update:  {} already exists, can't add it as new.".format(refname))
                 db.close()
                 return False
             else:
                 refname = changing[0][self.sql_map['refname'][0]]
         elif len(changing) == 0:
-            if self.__enable_new_entry:
+            if self._enable_new_entry:
                 if not self.quiet_update:
                     print('Adding new entry {}'.format(kwargs['description'][:30]))
                 new_id = qdb.execute("SELECT MAX(id) as id FROM records").fetchone()[0] + 1
@@ -682,13 +693,14 @@ class Data:
         print
 
     def _getview(self, view, howsort):
-        if howsort not in self.Records.required:
-            print("{} sort option not valid.")
+        for hs in howsort:
+            if hs not in self.Records.required:
+                print("{} sort option not valid.")
         if view == 'all':
             view = self.data.keys()
         if type(view) is not list:
             view = [view]
-        if howsort is None:
+        if howsort is None or not len(howsort):
             thesekeys = view
         else:
             self.sortedKeys = self.sortby(howsort)
@@ -803,80 +815,70 @@ class Data:
     def listing(self, view='all'):
         """
         Provides a short listing of the given records (default is all) in fixed widths.
-        You can set the description_length via set_description_length(X)
         """
-        desc_len = str(self.description_length) + '.' + str(self.description_length)
         view = self._getview(view, self.display_howsort)
         for key in view:
             desc = self.data[key]['description']
             val = self.data[key]['value']
             stat = self.data[key]['status'].split()[0]
             owner = pd_utils.stringify(self.data[key]['owner'])
-            # print('{:10.10} {:12.12} \t {:{d_l}} ({})'.format(val, owner, desc, key, d_l=desc_len))
             print('{:10.10} {} ({})'.format(val, desc, stat))
 
     def gantt(self, view='all'):
         view = self._getview(view, self.display_howsort)
         if self.dbtype not in self.ganttables:
             print('You can only gantt:  ', self.ganttables)
-        if type(view) != list:
-            view = [view]
-        if self.gantt_label_to_use not in self.Records.required:
-            print("{} label not found to use.".format(self.gantt_label_to_use))
-            return
-        if self.gantt_label_annot and self.gantt_label_annot not in self.Records.required:
-            print("{} other label not found to use.".format(self.gantt_label_annot))
-            return
-        if self.gantt_label_prefix and self.gantt_label_prefix not in self.Records.required:
-            print("{} prefix label not found to use.".format(self.gantt_label_prefix))
-            return
-        label_prec = 's'
-        if self.gantt_label_to_use == 'description':
-            label_prec = '.' + str(self.description_length)
+        for gantt_label in self.gantt_label:
+            if gantt_label not in self.Records.required:
+                print("{} label not found to use.".format(gantt_label))
+                return
+        for gantt_annot in self.gantt_annot:
+            if gantt_annot not in self.Records.required:
+                print("{} annot not found to use.".format(gantt_annot))
+                return
         labels = []
         dates = []
-        tstat = []
-        pred = []
-        other = []
+        tstats = []
+        preds = []
+        annots = []
         for v in view:
-            label = ''
-            if self.gantt_label_prefix:
-                label = '{}: '.format(self.data[v][self.gantt_label_prefix])
-            label += '{:{prec}}'.format(str(self.data[v][self.gantt_label_to_use]), prec=label_prec)
-            label = pd_gantt.check_gantt_labels(label, labels)
-            labels.append(label)
+            label = [self.data[v][gl] for gl in self.gantt_label]
+            label = pd_gantt.check_gantt_labels(': '.join(label), labels)[:self.gantt_label_length]
             value = str(self.data[v]['value'])
             status = str(self.data[v]['status']).lower().strip()
-            if not self.gantt_label_annot:
-                othlab = ''
-            else:
-                othlab = self.data[v][self.gantt_label_annot]
-                othlab = pd_utils.stringify(othlab)
-            predss = []
+            annot = []
+            for ga in self.gantt_annot:
+                grp = [x for x in self.data[v][ga]]
+                annot.append(','.join(grp))
+            annot = '; '.join(annot)
+            predv = []
             if 'milestoneTrace' in self.data[v].keys():
+                print("DC855:  Does this section of code work???")
                 milepred = self.data[v]['milestoneTrace']
                 if self.dbtype == 'milestone' or self.dbtype == 'wbs':
                     for x in milepred:
                         if x in view:
-                            predss.append(str(self.data[x]['description'])[0:self.description_length])
+                            predv.append(str(self.data[x]['description'])[0:self.gantt_label_length])
             if 'taskTrace' in self.data[v].keys():
+                print("DC862: Does this section of code work???")
                 taskpred = self.data[v]['taskTrace']
                 if self.dbtype == 'task' or self.dbtype == 'wbs':
                     for x in taskpred:
                         if x in view:
-                            predss.append(str(self.data[x]['description'])[0:labelLength])
-            pred.append(predss)
+                            predv.append(str(self.data[x]['description'])[0:self.gantt_label_length])
+            labels.append(label)
+            preds.append(predv)
             dates.append(value)
-            other.append(othlab)
+            annots.append(annot)
             status_return = self.check_ganttable_status(status, value)
-            tstat.append(status_return)
+            tstats.append(status_return)
         if not self.plot_predecessors:
             pred = None
         other_labels = None
-        if self.gantt_label_annot:
-            other_labels = other
+        if len(self.gantt_annot):
+            other_labels = annots
         show_cdf = self.show_cdf and self.Records.status[0].lower() != 'late'
-        pd_gantt.plotGantt(labels, dates, pred, tstat, show_cdf=show_cdf, other_labels=other_labels)
+        pd_gantt.plotGantt(labels, dates, preds, tstats, show_cdf=show_cdf, other_labels=other_labels)
         if self.show_color_bar and self.Records.status[0].lower() != 'late':
             pd_gantt.colorBar()
 
@@ -927,8 +929,11 @@ class Data:
             tcode = pd_gantt.lag2rgb(lag)
         return (status_code, tcode)
 
-    def sortby(self, sb):
+    def sortby(self, sort_it_by):
         sortdict = {}
+        if len(sort_it_by) > 1:
+            print("Sorting by more than one thing is not yet supported.  Using first term.")
+        sb = sort_it_by[0]
         for k in self.data:
             sdt = self.data[k][sb]
             if sdt is None:

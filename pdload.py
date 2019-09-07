@@ -62,22 +62,10 @@ if 'hera' in cwd:
 elif 'breakthroughlisten' in cwd:
     project_name = 'BreakthroughListen'
 print("\nSetting defaults for {}".format(project_name))
-mi.set_state(description_length=65,
-             gantt_label_to_use='description',
-             gantt_label_annot=['owner'],
-             gantt_label_prefix=None,
-             display_howsort='value',
-             plot_predecessors=True,
-             output_filename='fileout.csv',
-             default_find_dtype=None,
-             show_trace=True,
-             show_color_bar=True,
-             show_cdf=True,
-             quiet_update=False)
 
 if project_name == 'HERA':
-    mi.set_state(default_find_dtype=['nsfB'])
-    mi.set_state(gantt_label_annot=None)
+    mi.set_state(find_dtype=['nsfB'])
+    mi.set_state(gantt_annot=['owner'])
 elif project_name == 'BreakthroughListen':
-    mi.set_state(gantt_label_prefix='other')
-    mi.set_state(default_find_dtype=['T1', 'T1HW', 'T2'])
+    mi.set_state(gantt_label=['other', 'description'])
+    mi.set_state(find_dtype=['T1', 'T1HW', 'T2'])
