@@ -269,8 +269,7 @@ class Data:
         if (dtdate is not None) and (dtdur is not None):
             sta = datetime.datetime.strptime(dtdate, '%y/%m/%d')
             y_old = sta.year
-            d, m, y = (sta.day, (sta.month + dtdur) % 12, int(sta.year + (sta.month + dtdur) / 12))
-            end = datetime.datetime(y, m, d) - datetime.timedelta(1.0)
+            end = pd_utils.get_dmy(dtdur / 3.0, sta.day, sta.month, sta.year) - datetime.timedelta(1.0)
             print('{}  -  {}'.format(datetime.datetime.strftime(sta, '%Y/%m/%d'), datetime.datetime.strftime(end, '%Y/%m/%d')))
             proj_year = 0
             for q in range(int(dtdur / 3.0)):
