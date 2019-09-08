@@ -13,9 +13,25 @@ import fields_class as FC
 
 
 class Data:
-    db_json_file = 'databases.json'
+    state_var_defaults = {'gantt_label_length': 50,
+                          'gantt_label': ['description'],
+                          'gantt_annot': ['owner'],
+                          'display_howsort': ['value'],
+                          'find_dtype': [],
+                          'output_filename': 'fileout.csv',
+                          'plot_predecessors': True,
+                          'show_trace': True,
+                          'show_color_bar': True,
+                          'show_cdf': True,
+                          'quiet_update': False}
+    ganttable_status = {'removed': 'w',  # see check_ganttable_status
+                        'late': 'r',
+                        'moved': 'y',
+                        'none': 'k',
+                        'complete': 'b',
+                        'unknown': 'm'}
 
-    def __init__(self, dbtype, projectStart='14/09/01', verbose=True):
+    def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', verbose=True):
         """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
            a number of tex files.  See README and Architecture.dat
                dbtype is the type of database [milestones, reqspecs, interfaces, risks]
@@ -24,17 +40,10 @@ class Data:
                each db file has the following tables (dbtype, trace, type, updated)"""
         self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                                'noshow': self.noshow, 'file': self.fileout}
-        self.ganttable_status = {'removed': 'w',  # see check_ganttable_status
-                                 'late': 'r',
-                                 'moved': 'y',
-                                 'none': 'k',
-                                 'complete': 'b',
-                                 'unknown': 'm'}
         self.Records = FC.Records_fields()
         self.projectStart = projectStart
         self.dbtype = dbtype
-        # Get db type data from json
-        self.dbTypes = pd_utils.get_db_json(self.db_json_file)
+        self.dbTypes = pd_utils.get_db_json(db_json_file)
         self.dirName = self.dbTypes[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.dbTypes[dbtype]['dbfilename'])
         self.ganttables = []
@@ -45,17 +54,6 @@ class Data:
             self.traceables.append(dbtype)
         self.caption = self.dbTypes[dbtype]['caption']
         self._enable_new_entry = False
-        self.state_var_defaults = {'gantt_label_length': 50,
-                                   'gantt_label': ['description'],
-                                   'gantt_annot': ['owner'],
-                                   'display_howsort': ['value'],
-                                   'find_dtype': [],
-                                   'output_filename': 'fileout.csv',
-                                   'plot_predecessors': True,
-                                   'show_trace': True,
-                                   'show_color_bar': True,
-                                   'show_cdf': True,
-                                   'quiet_update': False}
         self.state_vars = list(self.state_var_defaults.keys())
         self.state_initialized = False
         self.set_state(**self.state_var_defaults)
@@ -336,7 +334,6 @@ class Data:
                     continue
                 status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
                 if rec.filter_rec(self.Records, self.data[dat], status):
-                    print(status)
                     if 'upda' in match.lower() or 'init' in match.lower():
                         if rec.filter_on_updates(match, value1time, value2time, self.data[dat]):
                             foundrec.append(dat)
