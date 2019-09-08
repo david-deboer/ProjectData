@@ -124,7 +124,13 @@ class Data:
         qdb.execute(qdb_exec)
         allowedTypes = {}
         for t in qdb.fetchall():
-            allowedTypes[str(t[0]).lower()] = t
+            key = str(t[0]).lower()
+            try:
+                allowedTypes[key] = {'name': t[0], 'description': t[1], 'start': t[2], 'duration_months': t[3]}
+                if allowedTypes[key]['start'] is not None:
+                    allowedTypes[key]['start'] = datetime.datetime.strptime(allowedTypes[key]['start'], '%y/%m/%d')
+            except IndexError:
+                allowedTypes[key] = {'name': t[0], 'description': t[1], 'start': None, 'duration_months': None}
 
         # put database records into data dictionary (records/trace tables)
         qdb_exec = "SELECT * FROM records ORDER BY id"
@@ -252,34 +258,28 @@ class Data:
         if dkey not in self.allowedTypes.keys():
             print("{} not found".format(dtype))
             return None
-        name = self.allowedTypes[dkey][0]
-        description = self.allowedTypes[dkey][1]
-        dtdate = self.allowedTypes[dkey][2]
-        dtdur = self.allowedTypes[dkey][3]
-        print("Information for {}: {}".format(name, description))
-        if dtdate is not None:
-            print("\t{}  ".format(dtdate), end='')
-        if dtdur is not None:
-            dur_in_qtr = int(dtdur / 3.0)
-            print("{}  months, {} quarters".format(dtdur, dur_in_qtr))
-        else:
-            print()
-        if (dtdate is not None) and (dtdur is not None):
-            sta = datetime.datetime.strptime(dtdate, '%y/%m/%d')
-            y_old = sta.year
-            end = pd_utils.get_dmy(dur_in_qtr, sta.day, sta.month, sta.year) - datetime.timedelta(1.0)
-            print('{}  -  {}'.format(datetime.datetime.strftime(sta, '%Y/%m/%d'), datetime.datetime.strftime(end, '%Y/%m/%d')))
+        rec = Namespace(**self.allowedTypes[dkey])
+        print("Information for {}: {}".format(rec.name, rec.description))
+        if rec.start is not None:
+            print("  {}  ".format(datetime.datetime.strftime(rec.start, '%Y/%m/%d')), end='')
+        if rec.duration_months is not None:
+            duration_qtr = int(rec.duration_months / 3.0)
+            print("  {}  months, {} quarters".format(rec.duration_months, duration_qtr))
+        if (rec.start is not None) and (rec.duration_months is not None):
+            y_old = rec.start.year
+            end = pd_utils.get_dmy(duration_qtr, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
+            print('{}  -  {}'.format(datetime.datetime.strftime(rec.start, '%Y/%m/%d'), datetime.datetime.strftime(end, '%Y/%m/%d')))
             proj_year = 0
-            for q in range(dur_in_qtr):
+            for q in range(duration_qtr):
                 if not q % 4:
                     proj_year += 1
                 py_sym = pd_utils.quarter_symbol(q, proj_year)
-                qtr = pd_utils.get_dmy(q, sta.day, sta.month, sta.year)
+                qtr = pd_utils.get_dmy(q, rec.start.day, rec.start.month, rec.start.year)
                 if qtr.year > y_old:
                     y_old = qtr.year
                     print("\t         ----------     ----------    " + ((proj_year + 1) % 2) * ' ' + str(proj_year))
                 print("\tQtr {:2d}:  {}".format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
-                qtr = pd_utils.get_dmy(q + 1, sta.day, sta.month, sta.year) - datetime.timedelta(1.0)
+                qtr = pd_utils.get_dmy(q + 1, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
 
 # ##################################################################FIND##################################################################
