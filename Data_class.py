@@ -276,25 +276,13 @@ class Data:
             for q in range(int(dtdur / 3.0)):
                 if not q % 4:
                     proj_year += 1
-                if q % 4 == 0 or q % 4 == 3:
-                    py_sym = '-'
-                else:
-                    py_sym = ' '
-                py_sym = (2 + (proj_year + 1) % 2) * py_sym + str(proj_year)
-                d, m, y = (sta.day, (sta.month + q * 3) % 12, sta.year + int((sta.month + q * 3) / 12))
-                if not m:
-                    m = 12
-                    y -= 1
-                if y > y_old:
-                    y_old = y
+                py_sym = pd_utils.quarter_symbol(q, proj_year)
+                qtr = pd_utils.get_dmy(q, sta.day, sta.month, sta.year)
+                if qtr.year > y_old:
+                    y_old = qtr.year
                     print("\t         ----------     ----------    " + ((proj_year + 1) % 2) * ' ' + str(proj_year))
-                qtr = datetime.datetime(y, m, d)
                 print("\tQtr {:2d}:  {}".format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
-                d, m, y = (sta.day, (sta.month + (q + 1) * 3) % 12, int(sta.year + (sta.month + (q + 1) * 3) / 12))
-                if not m:
-                    m = 12
-                    y -= 1
-                qtr = datetime.datetime(y, m, d) - datetime.timedelta(1.0)
+                qtr = pd_utils.get_dmy(q + 1, sta.day, sta.month, sta.year) - datetime.timedelta(1.0)
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
 
 # ##################################################################FIND##################################################################

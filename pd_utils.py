@@ -2,6 +2,7 @@ from __future__ import print_function
 import os
 import time
 import six
+import datetime
 
 
 def get_time(timestr):
@@ -121,6 +122,22 @@ def sortByValue(inDict):
     for s in sind:
         sk.append(ind[s])
     return sk
+
+
+def quarter_symbol(q, y):
+    if q % 4 == 0 or q % 4 == 3:
+        py_sym = '-'
+    else:
+        py_sym = ' '
+    return (2 + (y + 1) % 2) * py_sym + str(y)
+
+
+def get_dmy(q, dy, mn, yr):
+    d, m, y = (dy, (mn + q * 3) % 12, yr + int((mn + q * 3) / 12))
+    if not m:
+        m = 12
+        y -= 1
+    return datetime.datetime(y, m, d)
 
 
 def listify(X):
