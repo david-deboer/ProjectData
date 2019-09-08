@@ -133,7 +133,7 @@ def quarter_symbol(q, y):
 
 
 def get_dmy(q, dy, mn, yr):
-    d, m, y = (dy, (mn + q * 3) % 12, yr + int((mn + q * 3) / 12))
+    d, m, y = (int(dy), int((mn + q * 3) % 12), int(yr + int((mn + q * 3) / 12)))
     if not m:
         m = 12
         y -= 1

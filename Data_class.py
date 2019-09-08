@@ -263,16 +263,17 @@ class Data:
         if dtdate is not None:
             print("\t{}  ".format(dtdate), end='')
         if dtdur is not None:
-            print("{}  months".format(dtdur))
+            dur_in_qtr = int(dtdur / 3.0)
+            print("{}  months, {} quarters".format(dtdur, dur_in_qtr))
         else:
             print()
         if (dtdate is not None) and (dtdur is not None):
             sta = datetime.datetime.strptime(dtdate, '%y/%m/%d')
             y_old = sta.year
-            end = pd_utils.get_dmy(dtdur / 3.0, sta.day, sta.month, sta.year) - datetime.timedelta(1.0)
+            end = pd_utils.get_dmy(dur_in_qtr, sta.day, sta.month, sta.year) - datetime.timedelta(1.0)
             print('{}  -  {}'.format(datetime.datetime.strftime(sta, '%Y/%m/%d'), datetime.datetime.strftime(end, '%Y/%m/%d')))
             proj_year = 0
-            for q in range(int(dtdur / 3.0)):
+            for q in range(dur_in_qtr):
                 if not q % 4:
                     proj_year += 1
                 py_sym = pd_utils.quarter_symbol(q, proj_year)
