@@ -143,7 +143,7 @@ def get_dmy(q, dy, mn, yr):
 def listify(X):
     if X is None:
         return None
-    if isinstance(X, (str, unicode)) and ',' in X:
+    if isinstance(X, str) and ',' in X:
         return X.split(',')
     if isinstance(X, list):
         return X

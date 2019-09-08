@@ -1,11 +1,10 @@
 #! usr/bin/env python
 import os
 from operator import itemgetter
-import subprocess
 import sqlite3
 import datetime
 import time
-import six
+from argparse import Namespace
 import matplotlib.pyplot as plt
 #  Project specific modules
 import pd_gantt
@@ -23,8 +22,8 @@ class Data:
                self.data is the "internal" database
                sql_map are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
                each db file has the following tables (dbtype, trace, type, updated)"""
-        self.displayTypes = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
-                             'noshow': self.noshow, 'file': self.fileout}
+        self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
+                               'noshow': self.noshow, 'file': self.fileout}
         self.ganttable_status = {'removed': 'w',  # see check_ganttable_status
                                  'late': 'r',
                                  'moved': 'y',
@@ -304,7 +303,7 @@ class Data:
         # Set defaults and run through kwarg filters
         self.Records.set_find_default()
         self.Records.dtype = self.find_dtype
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             if k in self.Records.find_allowed:
                 if isinstance(v, str) or isinstance(v, int):
                     setattr(self.Records, k, [v])
@@ -337,6 +336,7 @@ class Data:
                     continue
                 status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
                 if rec.filter_rec(self.Records, self.data[dat], status):
+                    print(status)
                     if 'upda' in match.lower() or 'init' in match.lower():
                         if rec.filter_on_updates(match, value1time, value2time, self.data[dat]):
                             foundrec.append(dat)
@@ -369,10 +369,10 @@ class Data:
                 #     if foundMatch:
                 #         foundrec.append(dat)
         if len(foundrec):
-            foundrec = self._getview(foundrec, self.display_howsort)
-            if display not in self.displayTypes.keys():
+            foundrec = self.getview(foundrec, self.display_howsort)
+            if display not in self.displayMethods.keys():
                 display = 'listing'
-            return self.displayTypes[display](foundrec)
+            return self.displayMethods[display](foundrec)
         else:
             print('No records found.')
 
@@ -400,31 +400,46 @@ class Data:
         if returnList:
             return unique_values
 
-    def getref(self, d, search='description', verbose=True):
+    def getref(self, sval, search='description', finding='start', verbose=True):
+        """
+        Find a record searching various fields.
+
+        Parameters
+        ----------
+        sval : appropriate database field
+            value to look for
+        search : str
+            database field to look within
+        finding : str
+            method for strings, either 'in' or 'start'
+        verbose : bool
+            if found just one, this will diplsay or not
+
+        Returns
+        -------
+        None or str
+            Returns refname if one and only one is found, else None
+        """
         fndk = []
         for dat in self.data.keys():
             dbdesc = self.data[dat][search]
             if dbdesc is not None:
-                if isinstance(d, str):
-                    if d.lower() in dbdesc.lower():
-                        fndk.append(dat)
+                if isinstance(sval, str):
+                    if finding == 'in':
+                        if sval.lower() in dbdesc.lower():
+                            fndk.append(dat)
+                    elif finding == 'start':
+                        if dbdesc.lower().startswith(sval.lower()):
+                            fndk.append(dat)
                 else:
-                    if d == dbdesc:
+                    if sval == dbdesc:
                         fndk.append(dat)
         if len(fndk) == 1:
             if verbose:
-                self.show(fndk[0])
+                self.show(fndk)
             return fndk[0]
-        else:
-            print("{} found".format(len(fndk)))
-            for f in fndk:
-                refname = self.data[f]['refname']
-                dbdesc = self.data[f]['description']
-                value = self.data[f]['value']
-                status = self.data[f]['status']
-                notes = self.data[f]['notes']
-                print(refname, ':  ', dbdesc, ' [', value, ']')
-                print('\t', status, ':  ', notes)
+        print("{} found".format(len(fndk)))
+        self.listing(fndk)
         return None
 
     def since(self, dstr):
@@ -525,7 +540,7 @@ class Data:
                 return False
 
         # Process it
-        for fld, new_value in six.iteritems(kwargs):
+        for fld, new_value in kwargs.items():
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
                 if ',' in new_value:
@@ -579,9 +594,9 @@ class Data:
                 bbb = datetime.datetime.now()
                 dt = "{:02d}/{:02d}/{:02d}".format(bbb.year - 2000, bbb.month, bbb.day)
             if updater is None:
-                updater = six.moves.input("Who is updating:  ")
+                updater = input("Who is updating:  ")
             if upnote is None:
-                upnote = six.moves.input("Update note to append previous record notes:  ")
+                upnote = input("Update note to append previous record notes:  ")
             if new_entry:
                 full_upnote = upnote
             else:
@@ -680,14 +695,18 @@ class Data:
                     print(k, '  ', end='')
         print
 
-    def _getview(self, view, howsort):
+    def getview(self, view, howsort=None):
+        if howsort is None:
+            howsort = self.display_howsort
+        else:
+            howsort = pd_utils.listify(howsort)
         for hs in howsort:
             if hs not in self.Records.required:
-                print("{} sort option not valid.")
+                raise ValueError("{} sort option not valid.".format(hs))
         if view == 'all':
-            view = self.data.keys()
-        if type(view) is not list:
-            view = [view]
+            view = list(self.data.keys())
+        else:
+            view = pd_utils.listify(view)
         if howsort is None or not len(howsort):
             thesekeys = view
         else:
@@ -698,47 +717,41 @@ class Data:
                     thesekeys.append(key)
         return thesekeys
 
-    def noshow(self, view='all'):
+    def display_namespace(self, name):
+        rec = Namespace(**self.data[name])
+        rec.owner = pd_utils.stringify(rec.owner)
+        if len(rec.updates):
+            s = '\tUpdated\n'
+            for uuu in rec.updates:
+                s += '\t\t{},  {},  {}\n'.format(uuu[0].strip(), uuu[1].strip(), uuu[2].strip())
+        else:
+            s = ''
+        rec.updates = s
+        return rec
+
+    def noshow(self, view):
         """This just returns the keys to view but doesn't display anything"""
-        view = self._getview(view, self.display_howsort)
         return view
 
-    def show(self, view='all', output='stdout'):
-        view = self._getview(view, self.display_howsort)
+    def show(self, view, output='stdout'):
         if output is not 'stdout':
             save2file = True
             fp = open(output, 'w')
         else:
             save2file = False
         for name in view:
-            handle = pd_utils.make_handle(name)
-            value = self.data[name]['value']
-            description = self.data[name]['description']
-            dtype = self.data[name]['dtype']
-            owner = self.data[name]['owner']
-            other = self.data[name]['other']
-            updated = self.data[name]['updates']
-            notes = self.data[name]['notes']
-            idno = self.data[name]['id']
-            status = self.data[name]['status']
-            commentary = self.data[name]['commentary']
-            # s = '({}) {}     (\\def\\{})\n'.format(idno, name, handle)
-            s = '({}) {}\n'.format(idno, name)
-            s += '\tvalue:       {}\n'.format(value)
-            s += '\tdescription: {}\n'.format(description)
-            s += '\tdtype:        {}\n'.format(dtype)
-            s += '\tstatus:      {}\n'.format(status)
-            s += '\tnotes:       {}\n'.format(notes)
-            s += '\towner:       '
-            if owner:
-                for o in owner:
-                    s += (o + ', ')
-                s = s.strip().strip(',')
-            s += '\n'
-            if other:
-                s += '\tother:       {}\n'.format(other)
-            if commentary:
-                s += '\tcommentary:  {}\n'.format(commentary)
+            rec = self.display_namespace(name)
+            s = '({}) {}\n'.format(rec.id, name)
+            s += '\tvalue:        {}\n'.format(rec.value)
+            s += '\tdescription:  {}\n'.format(rec.description)
+            s += '\tdtype:        {}\n'.format(rec.dtype)
+            s += '\tstatus:       {}\n'.format(rec.status)
+            s += '\tnotes:        {}\n'.format(rec.notes)
+            s += '\towner:        {}\n'.format(rec.owner)
+            if rec.other:
+                s += '\tother:       {}\n'.format(rec.other)
+            if rec.commentary:
+                s += '\tcommentary:  {}\n'.format(rec.commentary)
             # ---1---# implement this later for all tracetypes
 # #            if self.dbtype!='reqspec':
 # #                dirName = dbTypes['reqspec'][dbEM['dirName']]
@@ -763,10 +776,7 @@ class Data:
 # #                                    s+=(rsdata[rrr][self.entryMap['value']]+'\n')
 # #                                except:
 # #                                    s+='not found in database\n'
-            s += '\tUpdated\n'
-            if updated:
-                for uuu in updated:
-                    s += '\t\t{},  {},  {}\n'.format(uuu[0].strip(), uuu[1].strip(), uuu[2].strip())
+            s += rec.updates
             print(s)
             if save2file:
                 fp.write(s + '\n')
@@ -774,46 +784,34 @@ class Data:
             print('Writing data to ' + output)
             fp.close()
 
-    def fileout(self, view='all'):
+    def fileout(self, view):
         tag = self.output_filename.split('.')[1]
         if tag == 'csv':
             import csv
-        view = self._getview(view, self.display_howsort)
         with open(self.output_filename, 'w') as output_file:
             if tag == 'csv':
                 s = ['value', 'description', 'owner', 'status', 'other', 'notes', 'commentary']
                 csvw = csv.writer(output_file)
                 csvw.writerow(s)
             for key in view:
-                description = self.data[key]['description']
-                val = self.data[key]['value']
-                status = self.data[key]['status']
-                owner = pd_utils.stringify(self.data[key]['owner'])
-                other = pd_utils.stringify(self.data[key]['other'])
-                notes = pd_utils.stringify(self.data[key]['notes'])
-                commentary = pd_utils.stringify(self.data[key]['commentary'])
+                rec = self.display_namespace(key)
                 if tag == 'csv':
-                    s = [val, description, owner, status, other, notes, commentary]
+                    s = [rec.value, rec.description, rec.owner, rec.status, rec.other, rec.notes, rec.commentary]
                     csvw.writerow(s)
                 else:
-                    s = '{} ({:8s}) {}:  {}   ({})\n'.format(val, owner, description, status, key)
+                    s = '{} ({:8s}) {}:  {}   ({})\n'.format(rec.value, rec.owner, rec.description, rec.status, key)
                     output_file.write(s)
         print('Writing file to ', self.output_filename)
 
-    def listing(self, view='all'):
+    def listing(self, view):
         """
         Provides a short listing of the given records (default is all) in fixed widths.
         """
-        view = self._getview(view, self.display_howsort)
         for key in view:
-            desc = self.data[key]['description']
-            val = self.data[key]['value']
-            stat = self.data[key]['status'].split()[0]
-            owner = pd_utils.stringify(self.data[key]['owner'])
-            print('{:10.10} {} ({})'.format(val, desc, stat))
+            rec = self.display_namespace(key)
+            print('{:10.10} {} ({})'.format(rec.value, rec.description, rec.status))
 
-    def gantt(self, view='all'):
-        view = self._getview(view, self.display_howsort)
+    def gantt(self, view):
         if self.dbtype not in self.ganttables:
             print('You can only gantt:  ', self.ganttables)
         for gantt_label in self.gantt_label:
@@ -841,19 +839,17 @@ class Data:
             annot = '; '.join(annot)
             predv = []
             if 'milestoneTrace' in self.data[v].keys():
-                print("DC855:  Does this section of code work???")
                 milepred = self.data[v]['milestoneTrace']
                 if self.dbtype == 'milestone' or self.dbtype == 'wbs':
                     for x in milepred:
                         if x in view:
-                            predv.append(str(self.data[x]['description'])[0:self.gantt_label_length])
+                            predv.append(self.data[x]['description'][0:self.gantt_label_length])
             if 'taskTrace' in self.data[v].keys():
-                print("DC862: Does this section of code work???")
                 taskpred = self.data[v]['taskTrace']
                 if self.dbtype == 'task' or self.dbtype == 'wbs':
                     for x in taskpred:
                         if x in view:
-                            predv.append(str(self.data[x]['description'])[0:self.gantt_label_length])
+                            predv.append(self.data[x]['description'][0:self.gantt_label_length])
             labels.append(label)
             preds.append(predv)
             dates.append(value)
@@ -929,7 +925,7 @@ class Data:
             elif isinstance(sdt, list):
                 sdt = sdt[0]
             sortdict[k] = sdt
-        sk = sorted(six.iteritems(sortdict), key=itemgetter(1, 0))
+        sk = sorted(sortdict.items(), key=itemgetter(1, 0))
         sl = []
         for k in sk:
             sl.append(k[0])
