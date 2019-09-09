@@ -116,12 +116,12 @@ class Data:
         qdb.execute(qdb_exec)
         allowedTypes = {}
         columns = ['name', 'description', 'start', 'duration_months']  # Should get from schema
-        for t in qdb.fetchall():
-            key = str(t[0]).lower()
+        for tmp in qdb.fetchall():
+            key = str(tmp[0]).lower()
             allowedTypes[key] = {}
             for k in columns:
                 allowedTypes[key][k] = None
-            for i, val in enumerate(t):
+            for i, val in enumerate(tmp):
                 allowedTypes[key][columns[i]] = val
 
         # put database records into data dictionary (records/trace tables)
