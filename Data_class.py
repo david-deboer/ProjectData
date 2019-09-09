@@ -103,7 +103,6 @@ class Data:
             inFile = self.inFile
         else:
             selfVersion = False
-
         try:
             sm = self.get_sql_map(inFile)
         except IOError:
@@ -123,14 +122,14 @@ class Data:
         qdb_exec = "SELECT * FROM types"
         qdb.execute(qdb_exec)
         allowedTypes = {}
+        columns = ['name', 'description', 'start', 'duration_months']  # Should get from schema
         for t in qdb.fetchall():
             key = str(t[0]).lower()
-            try:
-                allowedTypes[key] = {'name': t[0], 'description': t[1], 'start': t[2], 'duration_months': t[3]}
-                if allowedTypes[key]['start'] is not None:
-                    allowedTypes[key]['start'] = datetime.datetime.strptime(allowedTypes[key]['start'], '%y/%m/%d')
-            except IndexError:
-                allowedTypes[key] = {'name': t[0], 'description': t[1], 'start': None, 'duration_months': None}
+            allowedTypes[key] = {}
+            for k in columns:
+                allowedTypes[key][k] = None
+            for i, val in enumerate(t):
+                allowedTypes[k][columns[i]] = val
 
         # put database records into data dictionary (records/trace tables)
         qdb_exec = "SELECT * FROM records ORDER BY id"
