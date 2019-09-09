@@ -43,17 +43,10 @@ class Data:
         self.Records = FC.Records_fields()
         self.projectStart = projectStart
         self.dbtype = dbtype
-        self.dbTypes = pd_utils.get_db_json(db_json_file)
-        self.dirName = self.dbTypes[dbtype]['subdirectory']
-        self.inFile = os.path.join(self.dirName, self.dbTypes[dbtype]['dbfilename'])
-        self.ganttables = []
-        if self.dbTypes[dbtype]['ganttable'] == 'True':
-            self.ganttables.append(dbtype)
-        self.traceables = []
-        if self.dbTypes[dbtype]['traceable'] == 'True':
-            self.traceables.append(dbtype)
-        self.caption = self.dbTypes[dbtype]['caption']
-        self._enable_new_entry = False
+        self.db_list = pd_utils.get_db_json(db_json_file)
+        self.dirName = self.db_list[dbtype]['subdirectory']
+        self.inFile = os.path.join(self.dirName, self.db_list[dbtype]['dbfilename'])
+        self.enable_new_entry = False
         self.state_vars = list(self.state_var_defaults.keys())
         self.state_initialized = False
         self.set_state(**self.state_var_defaults)
@@ -129,7 +122,7 @@ class Data:
             for k in columns:
                 allowedTypes[key][k] = None
             for i, val in enumerate(t):
-                allowedTypes[k][columns[i]] = val
+                allowedTypes[key][columns[i]] = val
 
         # put database records into data dictionary (records/trace tables)
         qdb_exec = "SELECT * FROM records ORDER BY id"
@@ -147,7 +140,7 @@ class Data:
             if entry['owner'] is not None:
                 entry['owner'] = entry['owner'].split(',')  # make csv list a python list
             # ...get trace information
-            for tracetype in self.traceables:
+            for tracetype in self.db_list['traceable']:
                 fieldName = tracetype + 'Trace'
                 qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and tracetype='{}' ORDER BY tracename".format(refname, tracetype)
                 qdb.execute(qdb_exec)
@@ -187,7 +180,7 @@ class Data:
                 print(allowedTypes.keys())
 
         # check Trace table to ensure that all refnames are valid
-        for tracetype in self.traceables:
+        for tracetype in self.db_list['traceable']:
             fieldName = tracetype + 'Trace'
             qdb_exec = "SELECT * FROM trace where tracetype='{}' COLLATE NOCASE".format(tracetype)
             qdb.execute(qdb_exec)
@@ -312,7 +305,7 @@ class Data:
 
         rec = FC.Records_fields()
         foundrec = []
-        if self.dbtype in self.ganttables and field.lower() == 'value':
+        if self.dbtype in self.db_list['ganttable'] and field.lower() == 'value':
             # ...value is a date, so checking dtype and date(s)
             if value2 is None:
                 value2 = value
@@ -467,7 +460,7 @@ class Data:
     def add(self, dt=None, updater=None, upnote=None, **kwargs):
         """Adds a new record (essentially a wrapper for update which generates a refname and enables new)
         """
-        self._enable_new_entry = True
+        self.enable_new_entry = True
         if 'description' not in kwargs.keys():
             print("New entries must include a description.\nNot adding record.")
             return
@@ -489,7 +482,7 @@ class Data:
                 return
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
         self.update(refname, dt, updater, upnote, **kwargs)
-        self._enable_new_entry = False
+        self.enable_new_entry = False
         return
 
     def update(self, refname, dt=None, updater=None, upnote=None, **kwargs):
@@ -513,14 +506,14 @@ class Data:
             db.close()
             return False
         elif len(changing) == 1:
-            if self._enable_new_entry:
+            if self.enable_new_entry:
                 print("No update:  {} already exists, can't add it as new.".format(refname))
                 db.close()
                 return False
             else:
                 refname = changing[0][self.sql_map['refname'][0]]
         elif len(changing) == 0:
-            if self._enable_new_entry:
+            if self.enable_new_entry:
                 if not self.quiet_update:
                     print('Adding new entry {}'.format(kwargs['description'][:30]))
                 new_id = qdb.execute("SELECT MAX(id) as id FROM records").fetchone()[0] + 1
@@ -633,28 +626,27 @@ class Data:
             print('\tNone to change')
             db.close()
             return False
-        if self.dbtype in self.traceables:
-            for tr in self.traceables:
-                dirName = dbTypes[tr][dbEM['dirName']]
-                path = os.path.join(pbwd, dirName)
-                inFile = os.path.join(path, dbTypes[tr][dbEM['inFile']])
-                print('\tChecking ' + inFile)
-                db = sqlite3.connect(inFile)
-                qdb = db.cursor()
-                qdb_exec = "SELECT * FROM trace WHERE tracename='{}' and tracetype='{}'".format(old_name, self.dbtype)
+        for tr in self.db_list['traceable']:
+            dirName = self.db_list[tr][dbEM['dirName']]
+            path = os.path.join(pbwd, dirName)
+            inFile = os.path.join(path, self.db_list[tr][dbEM['inFile']])
+            print('\tChecking ' + inFile)
+            db = sqlite3.connect(inFile)
+            qdb = db.cursor()
+            qdb_exec = "SELECT * FROM trace WHERE tracename='{}' and tracetype='{}'".format(old_name, self.dbtype)
+            qdb.execute(qdb_exec)
+            changing = qdb.fetchall()
+            if len(changing) > 0:
+                plural = 's'
+                if len(changing) == 1:
+                    plural = ''
+                print('\t\t{} record{}'.format(len(changing), plural))
+                qdb_exec = "UPDATE trace SET tracename='{}' WHERE tracename='{}' and tracetype='{}'".format(new_name, old_name, self.dbtype)
                 qdb.execute(qdb_exec)
-                changing = qdb.fetchall()
-                if len(changing) > 0:
-                    plural = 's'
-                    if len(changing) == 1:
-                        plural = ''
-                    print('\t\t{} record{}'.format(len(changing), plural))
-                    qdb_exec = "UPDATE trace SET tracename='{}' WHERE tracename='{}' and tracetype='{}'".format(new_name, old_name, self.dbtype)
-                    qdb.execute(qdb_exec)
-                    db.commit()
-                else:
-                    print('\t\tNone to change')
-                db.close()
+                db.commit()
+            else:
+                print('\t\tNone to change')
+            db.close()
         self.readData()
         return True
 
@@ -666,10 +658,10 @@ class Data:
             checkrec = self.data.keys()
         elif type(checkrec) is not list:
             checkrec = [checkrec]
-        for tr in self.traceables:
-            dirName = dbTypes[tr][dbEM['dirName']]
+        for tr in self.db_list['traceable']:
+            dirName = self.db_list[tr][dbEM['dirName']]
             path = os.path.join(pbwd, dirName)
-            inFile = os.path.join(path, dbTypes[tr][dbEM['inFile']])
+            inFile = os.path.join(path, self.db_list[tr][dbEM['inFile']])
             print('Checking {} {}Trace in {} against {}'.format(self.dbtype, tr, checkrec, inFile))
             db = sqlite3.connect(inFile)
             qdb = db.cursor()
@@ -750,14 +742,14 @@ class Data:
                 s += '\tcommentary:  {}\n'.format(rec.commentary)
             # ---1---# implement this later for all tracetypes
 # #            if self.dbtype!='reqspec':
-# #                dirName = dbTypes['reqspec'][dbEM['dirName']]
+# #                dirName = self.db_list['reqspec'][dbEM['dirName']]
 # #                path = os.path.join(pbwd,dirName)
-# #                inFile = os.path.join(path,dbTypes['reqspec'][dbEM['inFile']])
+# #                inFile = os.path.join(path,self.db_list['reqspec'][dbEM['inFile']])
 # #                rsdata = self.readData(inFile)
 # #            else:
 # #                rsdata = self.data
-            if len(self.traceables) and self.show_trace:
-                for tracetype in self.traceables:
+            if self.show_trace:
+                for tracetype in self.db_list['traceable']:
                     fieldName = tracetype + 'Trace'
                     s += '\t' + tracetype + ' trace\n'
                     xxxTrace = self.data[name][fieldName]
@@ -808,8 +800,9 @@ class Data:
             print('{:10.10} {} ({})'.format(rec.value, rec.description, rec.status))
 
     def gantt(self, view):
-        if self.dbtype not in self.ganttables:
-            print('You can only gantt:  ', self.ganttables)
+        if self.dbtype not in self.db_list['ganttable']:
+            print('{} not ganttable:  ', self.dbtype)
+            return
         for gantt_label in self.gantt_label:
             if gantt_label not in self.Records.required:
                 print("{} label not found to use.".format(gantt_label))

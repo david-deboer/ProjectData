@@ -1,7 +1,6 @@
 from __future__ import print_function
 import os
 import time
-import six
 import datetime
 
 
@@ -20,10 +19,15 @@ def get_time(timestr):
     return timeval
 
 
-def get_db_json(dbjson='databases.json'):
+def get_db_json(dbjson='databases.json', consolidate=['ganttable', 'traceable']):
     import json
     with open(dbjson, 'r') as f:
         x = json.load(f)
+    for dbcon in consolidate:
+        x[dbcon] = []
+        for chkdb, able in x.items():
+            if isinstance(able, dict) and able[dbcon] == 'True':
+                x[dbcon].append(chkdb)
     return x
 
 
@@ -31,7 +35,7 @@ def searchfield(value, infield, match):
     foundMatch = False
     if type(infield) == list:
         foundMatch = searchlist(value, infield, match)
-    elif isinstance(infield, six.string_types) and isinstance(value, six.string_types):
+    elif isinstance(infield, str) and isinstance(value, str):
         value = value.strip()
         infield = infield.strip()
         if match == 'weak':
