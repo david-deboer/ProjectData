@@ -668,12 +668,7 @@ class Data:
     def show_schema(self):
         for tbl in self.sqlmap.keys():
             print("Table:  {}".format(tbl))
-            print("\t", end='')
-            for v in sorted(self.sqlmap[tbl].values()):
-                for k in self.sqlmap[tbl].keys():
-                    if self.sqlmap[tbl][k] == v:
-                        print(k, '  ', end='')
-            print()
+            print("\t{}".format(', '.join(self.fields[tbl])))
 
     def getview(self, view, howsort=None):
         if howsort is None:
