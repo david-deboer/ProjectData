@@ -1,18 +1,20 @@
-#! usr/bin/env python
 import os
 from operator import itemgetter
 import sqlite3
 import datetime
-import time
 from argparse import Namespace
 import matplotlib.pyplot as plt
-#  Project specific modules
 import pd_gantt
 import pd_utils
 import fields_class as FC
 
 
 class Data:
+    """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db]
+           dbtype is the type of database [milestones, reqspecs, interfaces, risks]
+           self.data is the "internal" database
+           sqlmap are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
+           each db file has the following tables (dbtype, trace, type, updated)"""
     state_var_defaults = {'gantt_label_length': 50,
                           'gantt_label': ['description'],
                           'gantt_annot': ['owner'],
@@ -32,14 +34,7 @@ class Data:
                         'unknown': 'm'}
 
     def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', verbose=True):
-        """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db] and write out
-           a number of tex files.  See README and Architecture.dat
-               dbtype is the type of database [milestones, reqspecs, interfaces, risks]
-               self.data is the "internal" database
-               sql_map are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
-               each db file has the following tables (dbtype, trace, type, updated)"""
-        self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
-                               'noshow': self.noshow, 'file': self.fileout}
+        self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt, 'noshow': self.noshow, 'file': self.fileout}
         self.Records = FC.Records_fields()
         self.projectStart = projectStart
         self.dbtype = dbtype
@@ -97,7 +92,7 @@ class Data:
         else:
             selfVersion = False
         try:
-            sm = self.get_sql_map(inFile)
+            sqlmap = self.get_sql_map(inFile, tables=['records', 'types'])
         except IOError:
             if '+' in inFile:
                 print(inFile + ' is a concatenated database -- read in and concatDat')
@@ -105,7 +100,7 @@ class Data:
                 print('Sorry, ' + inFile + ' is not a valid database')
             return None
         for r in self.Records.required:
-            if r not in sm.keys():
+            if r not in sqlmap['records'].keys():
                 raise ValueError("{} column not found in {}.".format(r, inFile))
 
         dbconnect = sqlite3.connect(inFile)
@@ -115,14 +110,11 @@ class Data:
         qdb_exec = "SELECT * FROM types"
         qdb.execute(qdb_exec)
         allowedTypes = {}
-        columns = ['name', 'description', 'start', 'duration_months']  # Should get from schema
         for tmp in qdb.fetchall():
             key = str(tmp[0]).lower()
             allowedTypes[key] = {}
-            for k in columns:
-                allowedTypes[key][k] = None
             for i, val in enumerate(tmp):
-                allowedTypes[key][columns[i]] = val
+                allowedTypes[key][self.fields['types'][i]] = val
 
         # put database records into data dictionary (records/trace tables)
         qdb_exec = "SELECT * FROM records ORDER BY id"
@@ -130,11 +122,11 @@ class Data:
         data = {}
         self.cache_lower_data_keys = set()
         for rec in qdb.fetchall():
-            refname = rec[sm['refname'][0]]
+            refname = rec[sqlmap['records']['refname'][0]]
             # ...get a single entry
             entry = {}
-            for v in sm.keys():
-                entry[v] = rec[sm[v][0]]  # This makes the entry dictionary
+            for v in sqlmap['records'].keys():
+                entry[v] = rec[sqlmap['records'][v][0]]  # This makes the entry dictionary
             if entry['status'] is None:
                 entry['status'] = 'No status'
             if entry['owner'] is not None:
@@ -202,10 +194,10 @@ class Data:
         if selfVersion:
             self.allowedTypes = allowedTypes
             self.data = data
-            self.sql_map = sm
+            self.sqlmap = sqlmap
         return data
 
-    def get_sql_map(self, inFile=None, tables=['records'], show_detail=False):
+    def get_sql_map(self, inFile=None, tables=['records', 'types']):
         if inFile is None:
             inFile = self.inFile
         if os.path.exists(inFile):
@@ -215,17 +207,14 @@ class Data:
             return 0
         qdb = dbconnect.cursor()
         sql_map = {}
-        self.rec_fields = []
+        self.fields = {}
         for tbl in tables:
+            sql_map[tbl] = {}
+            self.fields[tbl] = []
             qdb.execute("PRAGMA table_info({})".format(tbl))
-            if show_detail:
-                print("Table name: {}".format(tbl))
             for t in qdb.fetchall():
-                if show_detail:
-                    print('\t', t)
-                if tbl == 'records':
-                    sql_map[str(t[1])] = (t[0], t[2])
-                    self.rec_fields.append(t[1])
+                sql_map[tbl][str(t[1])] = (t[0], t[2])
+                self.fields[tbl].append(t[1])
         dbconnect.close()
         return sql_map
 
@@ -253,7 +242,8 @@ class Data:
         rec = Namespace(**self.allowedTypes[dkey])
         print("Information for {}: {}".format(rec.name, rec.description))
         if rec.start is not None:
-            print("  {}  ".format(datetime.datetime.strftime(rec.start, '%Y/%m/%d')), end='')
+            rec.start = pd_utils.get_time(rec.start)
+            print("  {}  ".format(datetime.datetime.strftime(rec.start, '%y/%m/%d')), end='')
         if rec.duration_months is not None:
             duration_qtr = int(rec.duration_months / 3.0)
             print("  {}  months, {} quarters".format(rec.duration_months, duration_qtr))
@@ -312,7 +302,7 @@ class Data:
                 value = self.projectStart
             value1time = pd_utils.get_time(value)
             value2time = pd_utils.get_time(value2)
-            if not isinstance(value1time, time.struct_time) or not isinstance(value2time, time.struct_time):
+            if not isinstance(value1time, datetime.datetime) or not isinstance(value2time, datetime.datetime):
                 return 0
             for dat in self.data.keys():  # Loop over all records
                 if self.data[dat][field] is None:
@@ -322,7 +312,7 @@ class Data:
                 else:
                     val2check = str(self.data[dat][field])
                 timevalue = pd_utils.get_time(val2check)
-                if not isinstance(timevalue, time.struct_time):
+                if not isinstance(timevalue, datetime.datetime):
                     continue
                 status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
                 if rec.filter_rec(self.Records, self.data[dat], status):
@@ -511,7 +501,7 @@ class Data:
                 db.close()
                 return False
             else:
-                refname = changing[0][self.sql_map['refname'][0]]
+                refname = changing[0][self.sqlmap['records']['refname'][0]]
         elif len(changing) == 0:
             if self.enable_new_entry:
                 if not self.quiet_update:
@@ -543,7 +533,7 @@ class Data:
                 changed = True
             elif fld.lower() == 'refname':  # Do last
                 continue
-            elif fld not in self.sql_map.keys():
+            elif fld not in self.sqlmap['records'].keys():
                 print('{} is not a database field - skipping'.format(fld))
                 continue
             else:
@@ -589,7 +579,7 @@ class Data:
             if new_entry:
                 full_upnote = upnote
             else:
-                oldnote = changing[0][self.sql_map['notes'][0]]
+                oldnote = changing[0][self.sqlmap['records']['notes'][0]]
                 if oldnote is None:
                     oldnote = ''
                 full_upnote = upnote + ' :: <Previous note: ' + oldnote + '>'
@@ -676,12 +666,14 @@ class Data:
 
 # ##################################################################VIEW##################################################################
     def show_schema(self):
-        sm = self.get_sql_map(self.inFile)
-        for v in sorted(sm.values()):
-            for k in sm.keys():
-                if sm[k] == v:
-                    print(k, '  ', end='')
-        print
+        for tbl in self.sqlmap.keys():
+            print("Table:  {}".format(tbl))
+            print("\t", end='')
+            for v in sorted(self.sqlmap[tbl].values()):
+                for k in self.sqlmap[tbl].keys():
+                    if self.sqlmap[tbl][k] == v:
+                        print(k, '  ', end='')
+            print()
 
     def getview(self, view, howsort=None):
         if howsort is None:
@@ -880,9 +872,9 @@ class Data:
             if '-' in valuetime:
                 valuetime = valuetime.split('-')[-1]
             valuetime = pd_utils.get_time(valuetime)
-        elif not isinstance(valuetime, time.struct_time):
+        elif not isinstance(valuetime, datetime.datetime):
             print("Invalid time:  ", valuetime, type(valuetime))
-        now = time.localtime()
+        now = datetime.datetime.now()
 
         lag = 0.0
         if len(status) == 2:
@@ -890,7 +882,7 @@ class Data:
                 lag = float(status[1])
             except ValueError:
                 statustime = pd_utils.get_time(status[1])
-                if isinstance(statustime, time.struct_time):
+                if isinstance(statustime, datetime.datetime):
                     lag = (statustime - valuetime) / 3600.0 / 24.0
                 else:
                     tcode = status[1]

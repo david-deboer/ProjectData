@@ -1,6 +1,3 @@
-from __future__ import print_function
-import os
-import time
 import datetime
 
 
@@ -9,10 +6,10 @@ def get_time(timestr):
         return None
     timestr = timestr.strip()
     try:
-        timeval = time.strptime(timestr, '%y/%m/%d')
+        timeval = datetime.datetime.strptime(timestr, '%y/%m/%d')
     except ValueError:
         try:
-            timeval = time.strptime(timestr, '%Y/%m/%d')
+            timeval = datetime.datetime.strptime(timestr, '%Y/%m/%d')
         except ValueError:
             print('Incorrect time:  ', timestr)
             timeval = None
