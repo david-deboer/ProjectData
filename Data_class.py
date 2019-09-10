@@ -204,7 +204,7 @@ class Data:
             dbconnect = sqlite3.connect(inFile)
         else:
             print(inFile + ' not found')
-            return 0
+            return None
         qdb = dbconnect.cursor()
         sql_map = {}
         self.fields = {}
@@ -249,19 +249,19 @@ class Data:
             print("  {}  months, {} quarters".format(rec.duration_months, duration_qtr))
         if (rec.start is not None) and (rec.duration_months is not None):
             y_old = rec.start.year
-            end = pd_utils.get_dmy(duration_qtr, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
+            end = pd_utils.get_quarter_date(duration_qtr, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
             print('{}  -  {}'.format(datetime.datetime.strftime(rec.start, '%Y/%m/%d'), datetime.datetime.strftime(end, '%Y/%m/%d')))
             proj_year = 0
             for q in range(duration_qtr):
                 if not q % 4:
                     proj_year += 1
                 py_sym = pd_utils.quarter_symbol(q, proj_year)
-                qtr = pd_utils.get_dmy(q, rec.start.day, rec.start.month, rec.start.year)
+                qtr = pd_utils.get_quarter_date(q, rec.start.day, rec.start.month, rec.start.year)
                 if qtr.year > y_old:
                     y_old = qtr.year
                     print("\t         ----------     ----------    " + ((proj_year + 1) % 2) * ' ' + str(proj_year))
                 print("\tQtr {:2d}:  {}".format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
-                qtr = pd_utils.get_dmy(q + 1, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
+                qtr = pd_utils.get_quarter_date(q + 1, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
 
 # ##################################################################FIND##################################################################
@@ -328,25 +328,6 @@ class Data:
                 for fff in self.data[dat].keys():
                     if pd_utils.searchfield(value, self.data[dat][fff], match):
                         foundrec.append(dat)
-                # foundType = False
-                # if dtype.lower() in pthru and self.data[dat]['dtype'].lower() != 'na':
-                #     foundType = True
-                # elif dtype.lower() in self.data[dat]['dtype'].lower():
-                #     foundType = True
-                # if foundType:
-                #     foundMatch = False
-                #     if field.lower() in pthru:
-                #         for fff in self.data[dat].keys():
-                #             foundMatch = pd_utils.searchfield(value, self.data[dat][fff], match)
-                #             if foundMatch:
-                #                 break
-                #     elif field in self.data[dat].keys():
-                #         foundMatch = pd_utils.searchfield(value, self.data[dat][field], match)
-                #     else:
-                #         print('Invalid field for search')
-                #         return
-                #     if foundMatch:
-                #         foundrec.append(dat)
         if len(foundrec):
             foundrec = self.getview(foundrec, self.display_howsort)
             if display not in self.displayMethods.keys():

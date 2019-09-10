@@ -133,7 +133,7 @@ def quarter_symbol(q, y):
     return (2 + (y + 1) % 2) * py_sym + str(y)
 
 
-def get_dmy(q, dy, mn, yr):
+def get_quarter_date(q, dy, mn, yr):
     d, m, y = (int(dy), int((mn + q * 3) % 12), int(yr + int((mn + q * 3) / 12)))
     if not m:
         m = 12
