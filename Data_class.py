@@ -57,8 +57,10 @@ class Data:
                     setattr(self, k, v)
                 elif isinstance(v, str) and ',' in v:
                     v = [x.strip() for x in v.split(',')]
+                    setattr(self, k, v)
                 elif isinstance(v, str) and isinstance(def_var, list):
                     v = [v.strip()]
+                    setattr(self, k, v)
                 else:
                     valid_set = False
                 if self.state_initialized:
@@ -285,10 +287,8 @@ class Data:
         self.Records.dtype = self.find_dtype
         for k, v in kwargs.items():
             if k in self.Records.find_allowed:
-                if isinstance(v, str) or isinstance(v, int):
-                    setattr(self.Records, k, [v])
-                else:  # Assume it's a list
-                    setattr(self.Records, k, v)
+                vl = pd_utils.listify(v)
+                setattr(self.Records, k, vl)
             else:
                 print('keyword {} not allowed'.format(k))
                 continue
@@ -337,6 +337,10 @@ class Data:
             print('No records found.')
 
     def unique(self, field, filter_on=None, returnList=False):
+        """
+        Searches the given field in self.data and comes up with a list of unique values within
+        that field.
+        """
         unique_values = []
         for dat in self.data.keys():
             if filter_on:
@@ -697,9 +701,8 @@ class Data:
             save2file = False
         for name in view:
             rec = self.display_namespace(name)
-            s = '({}) {}\n'.format(rec.id, name)
+            s = '({}) {}\n'.format(rec.id, rec.description)
             s += '\tvalue:        {}\n'.format(rec.value)
-            s += '\tdescription:  {}\n'.format(rec.description)
             s += '\tdtype:        {}\n'.format(rec.dtype)
             s += '\tstatus:       {}\n'.format(rec.status)
             s += '\tnotes:        {}\n'.format(rec.notes)
@@ -717,21 +720,25 @@ class Data:
 # #            else:
 # #                rsdata = self.data
             if self.show_trace:
+                trace_s = ''
                 for tracetype in self.db_list['traceable']:
                     fieldName = tracetype + 'Trace'
-                    s += '\t' + tracetype + ' trace\n'
+                    trace_s += '\t' + tracetype + ' trace\n'
                     xxxTrace = self.data[name][fieldName]
                     if len(xxxTrace) == 0 or len(xxxTrace[0]) == 0:
-                        s += '\t\tNone\n'
+                        trace_s = ''
                     else:
                         for xxx in xxxTrace:
                             if len(xxx) > 0:
-                                s += '\t\t{}\n:  '.format(xxx)
+                                trace_s += '\t\t{}\n:  '.format(xxx)
                                 # ---1---#
 # #                                try:
 # #                                    s+=(rsdata[rrr][self.entryMap['value']]+'\n')
 # #                                except:
 # #                                    s+='not found in database\n'
+                if not len(trace_s):
+                    trace_s = '\tNo trace info found.\n'
+                s += trace_s
             s += rec.updates
             print(s)
             if save2file:
@@ -791,8 +798,13 @@ class Data:
             status = str(self.data[v]['status']).lower().strip()
             annot = []
             for ga in self.gantt_annot:
-                grp = [x for x in self.data[v][ga]]
-                annot.append(','.join(grp))
+                if isinstance(self.data[v][ga], list):
+                    grp = [str(x) for x in self.data[v][ga]]
+                    annot.append(','.join(grp))
+                elif self.data[v][ga] is None:
+                    annot = []
+                else:
+                    annot = [str(self.data[v][ga])]
             annot = '; '.join(annot)
             predv = []
             if 'milestoneTrace' in self.data[v].keys():

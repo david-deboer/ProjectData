@@ -64,8 +64,9 @@ elif 'breakthroughlisten' in cwd:
 print("\nSetting defaults for {}".format(project_name))
 
 if project_name == 'HERA':
-    mi.set_state(find_dtype=['nsfB'])
+    mi.set_state(find_dtype=['nsfB', 'nsfC', 'internal'])
     mi.set_state(gantt_annot=['owner'])
+    mi.set_state(show_trace=False)
 elif project_name == 'BreakthroughListen':
     mi.set_state(gantt_label=['other', 'description'])
     mi.set_state(find_dtype=['T1', 'T1HW', 'T2'])

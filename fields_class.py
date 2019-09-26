@@ -18,10 +18,10 @@ class Records_fields:
         """
         Checks 'val'
         """
+        f_val = [str(x).strip().lower() for x in val]
         for ifind in finding:
             sfnd = str(ifind).strip().lower()
-            val = str(val).strip().lower()
-            if (sfnd in self.pass_thru) or (sfnd == val):
+            if (sfnd in self.pass_thru) or (sfnd in f_val):
                 return True
         return False
 
@@ -38,9 +38,11 @@ class Records_fields:
         for field in self.find_allowed:
             finding = getattr(Finding_class, field)
             if field == 'status':
-                val = status[0].lower()
+                val = [status[0].lower()]
+            elif rec[field] is None:
+                val = ['None']
             else:
-                val = str(rec[field]).lower()
+                val = [str(x).lower() for x in pd_utils.listify(rec[field])]
             if not self._filter_field(finding, val):
                 return False
         return True
