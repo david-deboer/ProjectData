@@ -99,9 +99,9 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
         date_max = matplotlib.dates.date2num(dt.datetime(yrmax, mnmax, 28))
 
     # Initialise plot
-    fig = plt.figure(figsize=(9, 8), tight_layout=True)
-    plt.axis(xmin=date_min, xmax=date_max)
-    ax = fig.add_subplot(111)
+    fig1 = plt.figure(figsize=(9, 8), tight_layout=True)
+    ax1 = fig1.add_subplot(111)
+    ax1.axis(xmin=date_min, xmax=date_max)
     step = 0.5
     ymin = step
     ymax = len(ylabels) * step
@@ -154,19 +154,19 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
                     xkp = [xk, xp, xp]
                     plt.plot(xkp, ykp, color='b', linewidth=3)
 
-    ax.xaxis_date()  # Tell matplotlib that these are dates...
+    ax1.xaxis_date()  # Tell matplotlib that these are dates...
     rule = rrulewrapper(MONTHLY, interval=1)
     loc = RRuleLocator(rule)
     formatter = DateFormatter("%b '%y")
-    ax.xaxis.set_major_locator(loc)
-    ax.xaxis.set_major_formatter(formatter)
-    labelsx = ax.get_xticklabels()
+    ax1.xaxis.set_major_locator(loc)
+    ax1.xaxis.set_major_formatter(formatter)
+    labelsx = ax1.get_xticklabels()
     plt.setp(labelsx, rotation=30, fontsize=12)
 
     # Finish up
-    ax.invert_yaxis()
-    plt.axis(ymin=ymax + (step - 0.01), ymax=ymin - (step - 0.01))
-    fig.autofmt_xdate()
+    ax1.invert_yaxis()
+    ax1.axis(ymin=ymax + (step - 0.01), ymax=ymin - (step - 0.01))
+    fig1.autofmt_xdate()
     plt.tight_layout()
 
     # ##---If plotting cdf, check to see if you should---###
@@ -196,19 +196,19 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
                     ctr += 1.0
             cy_dat.append(ctr)  # /len(ylabels))
         cy_dat = np.array(cy_dat)
-        fig = plt.figure('cdf')
-        plt.axis(xmin=date_min, xmax=date_max, ymin=0.0, ymax=1.0)
-        ax = fig.add_subplot(111)
+        fig2 = plt.figure('cdf')
+        ax2 = fig2.add_subplot(111)
+        ax2.axis(xmin=date_min, xmax=date_max, ymin=0.0, ymax=1.0)
         plt.plot(cx_dat, cy_dat / cdf_tot)
         plt.ylabel('Fraction Completed')
         plt.grid()
-        ax.xaxis_date()  # Tell matplotlib that these are dates...
+        ax2.xaxis_date()  # Tell matplotlib that these are dates...
         rule = rrulewrapper(MONTHLY, interval=1)
         loc = RRuleLocator(rule)
         formatter = DateFormatter("%b '%y")
-        ax.xaxis.set_major_locator(loc)
-        ax.xaxis.set_major_formatter(formatter)
-        labelsx = ax.get_xticklabels()
+        ax2.xaxis.set_major_locator(loc)
+        ax2.xaxis.set_major_formatter(formatter)
+        labelsx = ax2.get_xticklabels()
         plt.setp(labelsx, rotation=30, fontsize=12)
 
 

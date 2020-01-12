@@ -3,7 +3,6 @@ from operator import itemgetter
 import sqlite3
 import datetime
 from argparse import Namespace
-import matplotlib.pyplot as plt
 import pd_gantt
 import pd_utils
 import fields_class as FC
@@ -13,8 +12,9 @@ class Data:
     """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db]
            dbtype is the type of database [milestones, reqspecs, interfaces, risks]
            self.data is the "internal" database
-           sqlmap are the fields in the sqlite3 database (read from the .db file, but should correspond to entryMap strings)
-           each db file has the following tables (dbtype, trace, type, updated)"""
+           sqlmap are the fields in the sqlite3 database (read from the .db file, but should
+           correspond to entryMap strings) each db file has the following tables (dbtype, trace,
+           type, updated)"""
     state_var_defaults = {'gantt_label_length': 50,
                           'gantt_label': ['description'],
                           'gantt_annot': ['owner'],
@@ -33,8 +33,9 @@ class Data:
                         'complete': 'b',
                         'unknown': 'm'}
 
-    def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', verbose=True):
-        self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt, 'noshow': self.noshow, 'file': self.fileout}
+    def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', verbose=True):  # noqa
+        self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
+                               'noshow': self.noshow, 'file': self.fileout}
         self.Records = FC.Records_fields()
         self.projectStart = projectStart
         self.dbtype = dbtype
@@ -80,9 +81,10 @@ class Data:
     def readData(self, inFile=None):
         """This reads in the sqlite3 database and puts it into db and data arrays.
            If inFile==None:
-                it reads self.inFile and makes the data, db and sql_map arrays 'self':  this is the 'normal' way,
+                it reads self.inFile and makes the data, db and sql_map arrays 'self':
+                this is the 'normal' way,
            if inFile is a valid db file:
-                then it returns that data, not changing self (to handle pulling trace values etc out)
+                then it returns that data, not changing self (handles pulling trace values etc out)
            OTHER RANDOM SQLITE3 NOTES:
            for command line sqlite3, select etc (non .commands)  end with ;
            sqlite3 database.db .dump > database.txt          produces a text version
@@ -136,13 +138,15 @@ class Data:
             # ...get trace information
             for tracetype in self.db_list['traceable']:
                 fieldName = tracetype + 'Trace'
-                qdb_exec = "SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and tracetype='{}' ORDER BY tracename".format(refname, tracetype)
+                qdb_exec = ("SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and "
+                            "tracetype='{}' ORDER BY tracename".format(refname, tracetype))
                 qdb.execute(qdb_exec)
                 entry[fieldName] = []
                 for v in qdb.fetchall():
                     entry[fieldName].append(v[1])
             # ...read in updated table
-            qdb_exec = "SELECT * FROM updated WHERE refname='{}' COLLATE NOCASE ORDER BY level".format(refname)
+            qdb_exec = ("SELECT * FROM updated WHERE refname='{}' "
+                        "COLLATE NOCASE ORDER BY level".format(refname))
             qdb.execute(qdb_exec)
             entry['updates'] = []
             latest = pd_utils.get_time(self.projectStart)
@@ -221,7 +225,9 @@ class Data:
         return sql_map
 
     def concatDat(self, dblist):
-        """This will concatentate the database list into a single database, which is used to make WBS=TASK+MILESTONE"""
+        """
+        This will concatentate the database list into a single database,
+        which is used to make WBS=TASK+MILESTONE"""
         self.data = {}
         fullcount = 0
         overcount = 0
@@ -251,8 +257,11 @@ class Data:
             print("  {}  months, {} quarters".format(rec.duration_months, duration_qtr))
         if (rec.start is not None) and (rec.duration_months is not None):
             y_old = rec.start.year
-            end = pd_utils.get_quarter_date(duration_qtr, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
-            print('{}  -  {}'.format(datetime.datetime.strftime(rec.start, '%Y/%m/%d'), datetime.datetime.strftime(end, '%Y/%m/%d')))
+            end = pd_utils.get_quarter_date(duration_qtr,
+                                            rec.start.day, rec.start.month, rec.start.year) -\
+                                            datetime.timedelta(1.0)  # noqa
+            print('{}  -  {}'.format(datetime.datetime.strftime(rec.start, '%Y/%m/%d'),
+                                     datetime.datetime.strftime(end, '%Y/%m/%d')))
             proj_year = 0
             for q in range(duration_qtr):
                 if not q % 4:
@@ -262,25 +271,31 @@ class Data:
                 if qtr.year > y_old:
                     y_old = qtr.year
                     print("\t         ----------     ----------    " + ((proj_year + 1) % 2) * ' ' + str(proj_year))
-                print("\tQtr {:2d}:  {}".format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
-                qtr = pd_utils.get_quarter_date(q + 1, rec.start.day, rec.start.month, rec.start.year) - datetime.timedelta(1.0)
+                print("\tQtr {:2d}:  {}"
+                      .format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
+                qtr = pd_utils.get_quarter_date(q + 1,
+                                                rec.start.day, rec.start.month, rec.start.year) -\
+                                                datetime.timedelta(1.0)  # noqa
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
 
 # ##################################################################FIND##################################################################
     def find(self, value, value2=None, field='value', match='weak', display='gantt', **kwargs):
-        """This will find records matching value, except for milestones which looks between value,value2 dates (time format is yy/m/d)
+        """This will find records matching value, except for milestones which looks between
+            value,value2 dates (time format is yy/m/d)
             value: value for which to search
             value2: second value if used e.g. for bounding dates [None]
             field:  field in which to search (or 'any'/'all')  [value]
-            match:  strength of match (weak, moderate, strong, verystrong) [weak] or timing of updates
+            match:  strength of match (weak, moderate, strong, verystrong) or timing of updates
                     'updated before'      <value>
                     'updated after'       <value>
                     'updated between'     <value> - <value2>
                     'initialized before'  <value>
                     'initialized after'   <value>
                     'initialized between' <value> - <value2>
-            display:  how to return data ('show'/'listing'/'gantt'/'file'/'noshow') If noshow returns the list of keys
-            kwargs:  one of the following records table fields upon which to filter - dtype, status, owner, other, id"""
+            display:  how to return data ('show'/'listing'/'gantt'/'file'/'noshow')
+                      If noshow returns the list of keys
+            kwargs:  one of the following records table fields upon which to filter
+                     - dtype, status, owner, other, id"""
 
         # Set defaults and run through kwarg filters
         self.Records.set_find_default()
@@ -302,7 +317,8 @@ class Data:
                 value = self.projectStart
             value1time = pd_utils.get_time(value)
             value2time = pd_utils.get_time(value2)
-            if not isinstance(value1time, datetime.datetime) or not isinstance(value2time, datetime.datetime):
+            if not isinstance(value1time, datetime.datetime) or\
+               not isinstance(value2time, datetime.datetime):
                 return 0
             for dat in self.data.keys():  # Loop over all records
                 if self.data[dat][field] is None:
@@ -364,7 +380,7 @@ class Data:
         if returnList:
             return unique_values
 
-    def getref(self, sval, search='description', finding='start', verbose=True):
+    def getref(self, sval, search='description', method='start', verbose=True, retain_case=False):
         """
         Find a record searching various fields.
 
@@ -374,10 +390,12 @@ class Data:
             value to look for
         search : str
             database field to look within
-        finding : str
-            method for strings, either 'in' or 'start'
+        method : str
+            method for strings, either 'in', 'start' or 'equal'
         verbose : bool
             if found just one, this will diplsay or not
+        retain_case : bool
+            if not retain_case, it will check all lower
 
         Returns
         -------
@@ -389,11 +407,17 @@ class Data:
             dbdesc = self.data[dat][search]
             if dbdesc is not None:
                 if isinstance(sval, str):
-                    if finding == 'in':
-                        if sval.lower() in dbdesc.lower():
+                    if not retain_case:
+                        sval = sval.lower()
+                        dbdesc = dbdesc.lower()
+                    if method == 'in':
+                        if sval in dbdesc:
                             fndk.append(dat)
-                    elif finding == 'start':
-                        if dbdesc.lower().startswith(sval.lower()):
+                    elif method == 'start':
+                        if dbdesc.startswith(sval):
+                            fndk.append(dat)
+                    else:
+                        if sval == dbdesc:
                             fndk.append(dat)
                 else:
                     if sval == dbdesc:
@@ -453,7 +477,8 @@ class Data:
         while refname in self.data.keys():
             refname_len += 2
             if refname_len > refname_maxlen:
-                print("Not unique description:  {}\nNot adding record.".format(kwargs['description']))
+                print("Not unique description:  {}\nNot adding record."
+                      .format(kwargs['description']))
                 return
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
         self.update(refname, dt, updater, upnote, **kwargs)
@@ -465,7 +490,8 @@ class Data:
             name is the refname of the record, if not present a new entry is made
             dt is the YY/MM/DD of updated time (default is now)
             updater is the name of the updater (default is to query)
-            upnote is the note to be included in updated record (default is to query or 'initial' on creation)
+            upnote is the note to be included in updated record (default is to query
+            or 'initial' on creation)
             kwargs should be valid key=value pairs"""
         self.readData()
         db = sqlite3.connect(self.inFile)
@@ -514,7 +540,7 @@ class Data:
                 for tr in trlist:
                     print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refname)
                     qf = (refname, tr, ttype, '')
-                    qdb.execute("INSERT INTO trace(refname,tracename,tracetype,comment) VALUES (?,?,?,?)", qf)
+                    qdb.execute("INSERT INTO trace(refname,tracename,tracetype,comment) VALUES (?,?,?,?)", qf)  # noqa
                 changed = True
             elif fld.lower() == 'refname':  # Do last
                 continue
@@ -531,7 +557,7 @@ class Data:
                     ell = ''
                 if not self.quiet_update:
                     print('\tChanging {}{}.{} to "{}"'.format(desc[:20], ell, fld, new_value))
-                qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value, refname)
+                qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value, refname)  # noqa
                 qdb.execute(qdb_exec)
                 changed = True
         if 'refname' in kwargs.keys():  # Do last
@@ -546,7 +572,7 @@ class Data:
             self.readData()
             db = sqlite3.connect(self.inFile)
             qdb = db.cursor()
-            qdb_exec = "SELECT * FROM updated where refname='{}' COLLATE NOCASE ORDER BY level".format(refname)
+            qdb_exec = "SELECT * FROM updated where refname='{}' COLLATE NOCASE ORDER BY level".format(refname)  # noqa
             qdb.execute(qdb_exec)
             upd = qdb.fetchall()
             try:
@@ -577,7 +603,8 @@ class Data:
 
     def change_refName(self, old_name=None, new_name=None):
         """Need to update all dbs when the refname is changed"""
-        print("This will change the refname '{}' to '{}' in all databases".format(old_name, new_name))
+        print("This will change the refname '{}' to '{}' in all databases"
+              .format(old_name, new_name))
         print("\tFirst in " + self.inFile)
         db = sqlite3.connect(self.inFile)
         qdb = db.cursor()
@@ -585,11 +612,11 @@ class Data:
         qdb.execute(qdb_exec)
         changing = qdb.fetchall()
         if len(changing) == 1:
-            qdb_exec = "UPDATE records SET refname='{}' WHERE refname='{}'".format(new_name, old_name)
+            qdb_exec = "UPDATE records SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
             qdb.execute(qdb_exec)
-            qdb_exec = "UPDATE trace SET refname='{}' WHERE refname='{}'".format(new_name, old_name)
+            qdb_exec = "UPDATE trace SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
             qdb.execute(qdb_exec)
-            qdb_exec = "UPDATE updated SET refname='{}' WHERE refname='{}'".format(new_name, old_name)
+            qdb_exec = "UPDATE updated SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
             qdb.execute(qdb_exec)
             db.commit()
             db.close()
@@ -608,7 +635,8 @@ class Data:
             print('\tChecking ' + inFile)
             db = sqlite3.connect(inFile)
             qdb = db.cursor()
-            qdb_exec = "SELECT * FROM trace WHERE tracename='{}' and tracetype='{}'".format(old_name, self.dbtype)
+            qdb_exec = ("SELECT * FROM trace WHERE tracename='{}' AND "
+                        "tracetype='{}'".format(old_name, self.dbtype))
             qdb.execute(qdb_exec)
             changing = qdb.fetchall()
             if len(changing) > 0:
@@ -616,7 +644,8 @@ class Data:
                 if len(changing) == 1:
                     plural = ''
                 print('\t\t{} record{}'.format(len(changing), plural))
-                qdb_exec = "UPDATE trace SET tracename='{}' WHERE tracename='{}' and tracetype='{}'".format(new_name, old_name, self.dbtype)
+                qdb_exec = ("UPDATE trace SET tracename='{}' WHERE tracename='{}' AND "
+                            "tracetype='{}'".format(new_name, old_name, self.dbtype))
                 qdb.execute(qdb_exec)
                 db.commit()
             else:
@@ -643,7 +672,7 @@ class Data:
             for rec in checkrec:
                 for rs in self.data[rec][tr + 'Trace']:
                     if len(rs) > 0:
-                        qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(rs)
+                        qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(rs)  # noqa
                         qdb.execute(qdb_exec)
                         checking = qdb.fetchall()
                         if len(checking) == 0:
@@ -694,7 +723,7 @@ class Data:
         return view
 
     def show(self, view, output='stdout'):
-        if output is not 'stdout':
+        if output != 'stdout':
             save2file = True
             fp = open(output, 'w')
         else:
@@ -759,10 +788,12 @@ class Data:
             for key in view:
                 rec = self.display_namespace(key)
                 if tag == 'csv':
-                    s = [rec.value, rec.description, rec.owner, rec.status, rec.other, rec.notes, rec.commentary]
+                    s = [rec.value, rec.description, rec.owner, rec.status, rec.other,
+                         rec.notes, rec.commentary]
                     csvw.writerow(s)
                 else:
-                    s = '{} ({:8s}) {}:  {}   ({})\n'.format(rec.value, rec.owner, rec.description, rec.status, key)
+                    s = ('{} ({:8s}) {}:  {}   ({})\n'
+                         .format(rec.value, rec.owner, rec.description, rec.status, key))
                     output_file.write(s)
         print('Writing file to ', self.output_filename)
 
@@ -826,12 +857,13 @@ class Data:
             status_return = self.check_ganttable_status(status, value)
             tstats.append(status_return)
         if not self.plot_predecessors:
-            pred = None
+            preds = None
         other_labels = None
         if len(self.gantt_annot):
             other_labels = annots
         show_cdf = self.show_cdf and self.Records.status[0].lower() != 'late'
-        pd_gantt.plotGantt(labels, dates, preds, tstats, show_cdf=show_cdf, other_labels=other_labels)
+        pd_gantt.plotGantt(labels, dates, preds, tstats,
+                           show_cdf=show_cdf, other_labels=other_labels)
         if self.show_color_bar and self.Records.status[0].lower() != 'late':
             pd_gantt.colorBar()
 
