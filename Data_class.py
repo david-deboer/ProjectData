@@ -1,11 +1,11 @@
 import os
 from operator import itemgetter
 import sqlite3
-import datetime
 from argparse import Namespace
 import pd_gantt
 import pd_utils
 import fields_class as FC
+import datetime
 
 
 class Data:
@@ -270,7 +270,8 @@ class Data:
                 qtr = pd_utils.get_quarter_date(q, rec.start.day, rec.start.month, rec.start.year)
                 if qtr.year > y_old:
                     y_old = qtr.year
-                    print("\t         ----------     ----------    " + ((proj_year + 1) % 2) * ' ' + str(proj_year))
+                    print("\t         ----------     ----------    {}{}"
+                          .format(((proj_year + 1) % 2) * ' ', str(proj_year)))
                 print("\tQtr {:2d}:  {}"
                       .format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
                 qtr = pd_utils.get_quarter_date(q + 1,
@@ -606,6 +607,9 @@ class Data:
         print("This will change the refname '{}' to '{}' in all databases"
               .format(old_name, new_name))
         print("\tFirst in " + self.inFile)
+        print("WARNING:  dbEM and pbwd not defined!!!!")
+        dbEM = None
+        pbwd = None
         db = sqlite3.connect(self.inFile)
         qdb = db.cursor()
         qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(old_name)
@@ -655,6 +659,9 @@ class Data:
         return True
 
     def checkTrace(self, checkrec='all'):
+        print("WARNING:  dbEM and pbwd not defined!!!!")
+        dbEM = None
+        pbwd = None
         if not self.quiet_update:
             print('checkTrace not implemented...')
         return

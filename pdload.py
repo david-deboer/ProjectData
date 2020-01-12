@@ -4,7 +4,7 @@ try:
     base_code_path = code_path.set('ProjectData')
 except ImportError:
     import sys
-    base_code_path = raw_input('Full path to ProjectData code:  ')
+    base_code_path = input('Full path to ProjectData code:  ')
     if os.path.exists(os.path.joing(base_code_path, 'Data_class.py')):
         sys.path.append(base_code_path)
 import Data_class
