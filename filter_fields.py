@@ -3,7 +3,8 @@ import pd_utils
 
 class Records_fields:
     def __init__(self):
-        self.required = ['refname', 'value', 'description', 'dtype', 'status', 'owner', 'other', 'notes', 'id', 'commentary']
+        self.required = ['refname', 'value', 'description', 'dtype', 'status',
+                         'owner', 'other', 'notes', 'id', 'commentary']
         self.find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
         self.pass_thru = ['any', 'all', 'n/a', '-1', -1]  # do all if one of these
 
@@ -37,12 +38,13 @@ class Records_fields:
         """
         for field in self.find_allowed:
             finding = getattr(Finding_class, field)
+            rec_val = getattr(rec, field)
             if field == 'status':
                 val = [status[0].lower()]
-            elif rec[field] is None:
+            elif rec_val is None:
                 val = ['None']
             else:
-                val = [str(x).lower() for x in pd_utils.listify(rec[field])]
+                val = [str(x).lower() for x in pd_utils.listify(rec_val)]
             if not self._filter_field(finding, val):
                 return False
         return True

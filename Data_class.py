@@ -4,11 +4,13 @@ import sqlite3
 from argparse import Namespace
 import pd_gantt
 import pd_utils
-import fields_class as FC
+import filter_fields as FF
 import datetime
+from pysqlite_simple import tables
+from ddb_util import state_variable
 
 
-class Data:
+class Data(state_variable.StateVar):
     """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db]
            dbtype is the type of database [milestones, reqspecs, interfaces, risks]
            self.data is the "internal" database
@@ -25,7 +27,8 @@ class Data:
                           'show_trace': True,
                           'show_color_bar': True,
                           'show_cdf': True,
-                          'quiet_update': False}
+                          'quiet_update': False,
+                          'verbose': True}
     ganttable_status = {'removed': 'w',  # see check_ganttable_status
                         'late': 'r',
                         'moved': 'y',
@@ -33,214 +36,44 @@ class Data:
                         'complete': 'b',
                         'unknown': 'm'}
 
-    def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', verbose=True):  # noqa
+    def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', **kwargs):
+        super().__init__([])
+        for k, v in self.state_var_defaults.items():
+            self.sv_initialize(variable=k, value=v)
+        self.state(**kwargs)
         self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                                'noshow': self.noshow, 'file': self.fileout}
-        self.Records = FC.Records_fields()
+        self.Records = FF.Records_fields()
         self.projectStart = projectStart
         self.dbtype = dbtype
         self.db_list = pd_utils.get_db_json(db_json_file)
         self.dirName = self.db_list[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.db_list[dbtype]['dbfilename'])
+        self.db = tables.DB(self.inFile)
         self.enable_new_entry = False
-        self.state_vars = list(self.state_var_defaults.keys())
-        self.state_initialized = False
-        self.set_state(**self.state_var_defaults)
-        if verbose:
-            self.show_state()
 
-    def set_state(self, **kwargs):
-        for k, v in kwargs.items():
-            if k in self.state_vars:
-                valid_set = True
-                def_var = self.state_var_defaults[k]
-                if isinstance(v, type(def_var)):
-                    setattr(self, k, v)
-                elif isinstance(v, str) and ',' in v:
-                    v = [x.strip() for x in v.split(',')]
-                    setattr(self, k, v)
-                elif isinstance(v, str) and isinstance(def_var, list):
-                    v = [v.strip()]
-                    setattr(self, k, v)
-                else:
-                    valid_set = False
-                if self.state_initialized:
-                    if valid_set:
-                        print('Setting {} to {}'.format(k, v))
-                    else:
-                        print("{}: {} invalid format".format(k, v))
-            else:
-                print('state_var [{}] not found.'.format(k))
-        self.state_initialized = True
-
-    def show_state(self):
-        print("State variables")
-        for k in self.state_vars:
-            print('\t{}:  {}'.format(k, getattr(self, k)))
-
-    def readData(self, inFile=None):
-        """This reads in the sqlite3 database and puts it into db and data arrays.
-           If inFile==None:
-                it reads self.inFile and makes the data, db and sql_map arrays 'self':
-                this is the 'normal' way,
-           if inFile is a valid db file:
-                then it returns that data, not changing self (handles pulling trace values etc out)
-           OTHER RANDOM SQLITE3 NOTES:
+    def readData(self):
+        """
+        OTHER RANDOM SQLITE3 NOTES:
            for command line sqlite3, select etc (non .commands)  end with ;
            sqlite3 database.db .dump > database.txt          produces a text version
-           sqlite3 database.db < database.txt                is the inverse"""
-
-        if inFile is None:
-            selfVersion = True
-            inFile = self.inFile
-        else:
-            selfVersion = False
-        try:
-            sqlmap = self.get_sql_map(inFile, tables=['records', 'types'])
-        except IOError:
-            if '+' in inFile:
-                print(inFile + ' is a concatenated database -- read in and concatDat')
-            else:
-                print('Sorry, ' + inFile + ' is not a valid database')
-            return None
-        for r in self.Records.required:
-            if r not in sqlmap['records'].keys():
-                raise ValueError("{} column not found in {}.".format(r, inFile))
-
-        dbconnect = sqlite3.connect(inFile)
-        qdb = dbconnect.cursor()
-
-        # get allowed types
-        qdb_exec = "SELECT * FROM types"
-        qdb.execute(qdb_exec)
-        allowedTypes = {}
-        for tmp in qdb.fetchall():
-            key = str(tmp[0]).lower()
-            allowedTypes[key] = {}
-            for i, val in enumerate(tmp):
-                allowedTypes[key][self.fields['types'][i]] = val
-
-        # put database records into data dictionary (records/trace tables)
-        qdb_exec = "SELECT * FROM records ORDER BY id"
-        qdb.execute(qdb_exec)
-        data = {}
-        self.cache_lower_data_keys = set()
-        for rec in qdb.fetchall():
-            refname = rec[sqlmap['records']['refname'][0]]
-            # ...get a single entry
-            entry = {}
-            for v in sqlmap['records'].keys():
-                entry[v] = rec[sqlmap['records'][v][0]]  # This makes the entry dictionary
-            if entry['status'] is None:
-                entry['status'] = 'No status'
-            if entry['owner'] is not None:
-                entry['owner'] = entry['owner'].split(',')  # make csv list a python list
-            # ...get trace information
-            for tracetype in self.db_list['traceable']:
-                fieldName = tracetype + 'Trace'
-                qdb_exec = ("SELECT * FROM trace WHERE refname='{}' COLLATE NOCASE and "
-                            "tracetype='{}' ORDER BY tracename".format(refname, tracetype))
-                qdb.execute(qdb_exec)
-                entry[fieldName] = []
-                for v in qdb.fetchall():
-                    entry[fieldName].append(v[1])
-            # ...read in updated table
-            qdb_exec = ("SELECT * FROM updated WHERE refname='{}' "
-                        "COLLATE NOCASE ORDER BY level".format(refname))
-            qdb.execute(qdb_exec)
-            entry['updates'] = []
-            latest = pd_utils.get_time(self.projectStart)
-            entry['initialized'] = None
-            updtime = None
-            for v in qdb.fetchall():
-                entry['updates'].append([v[1], v[2], v[3]])
-                updtime = pd_utils.get_time(v[1])
-                if 'init' in v[3].lower():
-                    entry['initialized'] = updtime
-                if updtime > latest:
-                    latest = updtime
-            entry['updated'] = updtime
-            # ...put in data dictionary if not a duplicate
-            if refname.lower() in self.cache_lower_data_keys:
-                refname = self.find_matching_refname(refname)
-                existingEntry = data[refname]
-                print('name collision:  {} --> not adding to data'.format(refname))
-                print('[\n', existingEntry)
-                print('\n]\n[\n', entry)
-                print('\n]')
-            else:
-                data[refname] = entry
-                self.cache_lower_data_keys.add(refname.lower())
-            # ...give warning if not in 'allowedTypes' (but keep anyway)
-            if entry['dtype'] is not None and entry['dtype'].lower() not in allowedTypes.keys():
-                print('Warning type not in allowed list for {}: {}'.format(refname, entry['dtype']))
-                print('Allowed types are:')
-                print(allowedTypes.keys())
-
-        # check Trace table to ensure that all refnames are valid
-        for tracetype in self.db_list['traceable']:
-            fieldName = tracetype + 'Trace'
-            qdb_exec = "SELECT * FROM trace where tracetype='{}' COLLATE NOCASE".format(tracetype)
-            qdb.execute(qdb_exec)
-            for t in qdb.fetchall():
-                t_refname = t[0]
-                if t_refname.lower() not in self.cache_lower_data_keys:
-                    print('{} not in data records:  {}'.format(fieldName, t[0]))
-        # check Updated table to ensure that all refnames are valid
-        qdb_exec = "SELECT * FROM updated"
-        qdb.execute(qdb_exec)
-        for u in qdb.fetchall():
-            u_refname = u[0]
-            if u_refname.lower() not in self.cache_lower_data_keys:
-                print('updated not in data records:  ', u[0])
-        dbconnect.close()
-        if 'projectstart' in data.keys():
-            self.projectStart = data['projectstart']['value']
-            print('Setting project start to ' + self.projectStart)
-        if selfVersion:
-            self.allowedTypes = allowedTypes
-            self.data = data
-            self.sqlmap = sqlmap
-        return data
-
-    def get_sql_map(self, inFile=None, tables=['records', 'types']):
-        if inFile is None:
-            inFile = self.inFile
-        if os.path.exists(inFile):
-            dbconnect = sqlite3.connect(inFile)
-        else:
-            print(inFile + ' not found')
-            return None
-        qdb = dbconnect.cursor()
-        sql_map = {}
-        self.fields = {}
-        for tbl in tables:
-            sql_map[tbl] = {}
-            self.fields[tbl] = []
-            qdb.execute("PRAGMA table_info({})".format(tbl))
-            for t in qdb.fetchall():
-                sql_map[tbl][str(t[1])] = (t[0], t[2])
-                self.fields[tbl].append(t[1])
-        dbconnect.close()
-        return sql_map
-
-    def concatDat(self, dblist):
+           sqlite3 database.db < database.txt                is the inverse
         """
-        This will concatentate the database list into a single database,
-        which is used to make WBS=TASK+MILESTONE"""
-        self.data = {}
-        fullcount = 0
-        overcount = 0
-        for db in dblist:
-            dbcount = 0
-            for entry in db.data.keys():
-                fullcount += 1
-                dbcount += 1
-                if entry in self.data.keys():
-                    print(entry + ' already present - overwriting')
-                    overcount += 1
-                self.data[entry] = db.data[entry]
-        fullcount -= overcount
+
+        self.db.read('records', order_by='id')
+        self.db.read('updated')
+        self.db.read('types')
+        self.db.read('trace')
+
+        # collate updated and trace for refname
+        self.updated_collate = {}
+        for i, refname in enumerate(self.db.updated.refname):
+            self.updated_collate.setdefault(refname, [])
+            self.updated_collate[refname].append(i)
+        self.trace_collate = {}
+        for i, refname in enumerate(self.db.trace.refname):
+            self.trace_collate.setdefault(refname, [])
+            self.trace_collate[refname].append(i)
 
     def dtype_info(self, dtype='nsfB'):
         dkey = dtype.lower()
@@ -309,7 +142,7 @@ class Data:
                 print('keyword {} not allowed'.format(k))
                 continue
 
-        rec = FC.Records_fields()
+        rec = FF.Records_fields()
         foundrec = []
         if self.dbtype in self.db_list['ganttable'] and field.lower() == 'value':
             # ...value is a date, so checking dtype and date(s)
@@ -321,24 +154,25 @@ class Data:
             if not isinstance(value1time, datetime.datetime) or\
                not isinstance(value2time, datetime.datetime):
                 return 0
-            for dat in self.data.keys():  # Loop over all records
-                if self.data[dat][field] is None:
+            for i, rdata in enumerate(getattr(self.db.records, field)):  # Loop over all records
+                if rdata is None:
                     continue
-                if '-' in self.data[dat][field]:  # A date range is given - use first
-                    val2check = self.data[dat][field].split('-')[0].strip()
+                if '-' in rdata:  # A date range is given - use first
+                    val2check = rdata.split('-')[0].strip()
                 else:
-                    val2check = str(self.data[dat][field])
+                    val2check = str(rdata)
                 timevalue = pd_utils.get_time(val2check)
                 if not isinstance(timevalue, datetime.datetime):
                     continue
-                status = self.check_ganttable_status(self.data[dat]['status'], timevalue)
-                if rec.filter_rec(self.Records, self.data[dat], status):
+                status = self.check_ganttable_status(self.db.records.status[i], timevalue)
+                recns = self.db.mk_entry_ns('records', i)
+                if rec.filter_rec(self.Records, recns, status):
                     if 'upda' in match.lower() or 'init' in match.lower():
-                        if rec.filter_on_updates(match, value1time, value2time, self.data[dat]):
-                            foundrec.append(dat)
+                        if rec.filter_on_updates(match, value1time, value2time, recns):
+                            foundrec.append(i)
                     else:
                         if timevalue >= value1time and timevalue <= value2time:
-                            foundrec.append(dat)
+                            foundrec.append(i)
         else:
             print("This code isn't really checked out out for non-gantt stuff...")
             for dat in self.data.keys():
@@ -904,7 +738,7 @@ class Data:
         now = datetime.datetime.now()
 
         lag = 0.0
-        if len(status) == 2:
+        if status is not None and len(status) == 2:
             try:
                 lag = float(status[1])
             except ValueError:
