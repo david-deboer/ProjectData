@@ -20,12 +20,13 @@ def get_db_json(dbjson='databases.json', consolidate=['ganttable', 'traceable'])
     import json
     with open(dbjson, 'r') as f:
         x = json.load(f)
+    databases = x['databases']
     for dbcon in consolidate:
-        x[dbcon] = []
-        for chkdb, able in x.items():
+        databases[dbcon] = []
+        for chkdb, able in databases.items():
             if isinstance(able, dict) and able[dbcon] == 'True':
-                x[dbcon].append(chkdb)
-    return x
+                databases[dbcon].append(chkdb)
+    return databases, x['ganttable_status']
 
 
 def searchfield(value, infield, match):
@@ -64,8 +65,8 @@ def check_handle(handle):
     badHandle = not handle.isalpha()
     if badHandle:
         print("Note that tex can't have any digits or non-alpha characters")
-        useHandle = raw_input('Please try a new handle:  ')
-        checkHandle(useHandle)
+        useHandle = input('Please try a new handle:  ')
+        check_handle(useHandle)
     else:
         useHandle = handle
     return useHandle
@@ -130,10 +131,13 @@ def quarter_symbol(q, y):
         py_sym = '-'
     else:
         py_sym = ' '
-    return (2 + (y + 1) % 2) * py_sym + str(y)
+    return y * py_sym + str(y)
 
 
-def get_quarter_date(q, dy, mn, yr):
+def get_qtr_date(q, start):
+    dy = start.day
+    mn = start.month
+    yr = start.year
     d, m, y = (int(dy), int((mn + q * 3) % 12), int(yr + int((mn + q * 3) / 12)))
     if not m:
         m = 12

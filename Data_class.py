@@ -1,7 +1,4 @@
 import os
-from operator import itemgetter
-import sqlite3
-from argparse import Namespace
 import pd_gantt
 import pd_utils
 import filter_fields as FF
@@ -11,49 +8,37 @@ from ddb_util import state_variable
 
 
 class Data(state_variable.StateVar):
-    """This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db]
-           dbtype is the type of database [milestones, reqspecs, interfaces, risks]
-           self.data is the "internal" database
-           sqlmap are the fields in the sqlite3 database (read from the .db file, but should
-           correspond to entryMap strings) each db file has the following tables (dbtype, trace,
-           type, updated)"""
-    state_var_defaults = {'gantt_label_length': 50,
-                          'gantt_label': ['description'],
-                          'gantt_annot': ['owner'],
-                          'display_howsort': ['value'],
-                          'find_dtype': [],
-                          'output_filename': 'fileout.csv',
-                          'plot_predecessors': True,
-                          'show_trace': True,
-                          'show_color_bar': True,
-                          'show_cdf': True,
-                          'quiet_update': False,
-                          'verbose': True}
-    ganttable_status = {'removed': 'w',  # see check_ganttable_status
-                        'late': 'r',
-                        'moved': 'y',
-                        'none': 'k',
-                        'complete': 'b',
-                        'unknown': 'm'}
+    """
+    This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db]
+        dbtype is the type of database [milestones, reqspecs, interfaces, risks]
+        self.data is the "internal" database
+        sqlmap are the fields in the sqlite3 database (read from the .db file, but should
+        correspond to entryMap strings) each db file has the following tables (dbtype, trace,
+        type, updated)
+    """
 
     def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', **kwargs):
         super().__init__([])
-        for k, v in self.state_var_defaults.items():
-            self.sv_initialize(variable=k, value=v)
+        self.sv_json(json_file=db_json_file, keys_to_use='state_variables', use_to_initialize=True)
         self.state(**kwargs)
         self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                                'noshow': self.noshow, 'file': self.fileout}
-        self.Records = FF.Records_fields()
         self.projectStart = projectStart
         self.dbtype = dbtype
-        self.db_list = pd_utils.get_db_json(db_json_file)
+        self.db_list, self.ganttable_status = pd_utils.get_db_json(db_json_file)
         self.dirName = self.db_list[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.db_list[dbtype]['dbfilename'])
         self.db = tables.DB(self.inFile)
         self.enable_new_entry = False
 
-    def readData(self):
+    def read_data(self, since=None):
         """
+        Parameters
+        ----------
+        since : str/None
+            If set, will only load from the updated table after since.
+            Running mi.find('since') will show just these.
+
         OTHER RANDOM SQLITE3 NOTES:
            for command line sqlite3, select etc (non .commands)  end with ;
            sqlite3 database.db .dump > database.txt          produces a text version
@@ -61,7 +46,12 @@ class Data(state_variable.StateVar):
         """
 
         self.db.read('records', order_by='id')
-        self.db.read('updated')
+        self.num_records = len(self.db.records.refname)
+        if since is not None:
+            print("Type mi.find('since') to see records.")
+            self.db.read('updated', order_by='updated', updated='>{}'.format(since))
+        else:
+            self.db.read('updated', order_by='updated')
         self.db.read('types')
         self.db.read('trace')
 
@@ -76,11 +66,14 @@ class Data(state_variable.StateVar):
             self.trace_collate[refname].append(i)
 
     def dtype_info(self, dtype='nsfB'):
-        dkey = dtype.lower()
-        if dkey not in self.allowedTypes.keys():
+        """
+        Print out a short timeline of dtype.
+        """
+        if dtype not in self.db.types.name:
             print("{} not found".format(dtype))
             return None
-        rec = Namespace(**self.allowedTypes[dkey])
+        i = self.db.types.name.index(dtype)
+        rec = self.db.mk_entry_ns('types', i)
         print("Information for {}: {}".format(rec.name, rec.description))
         if rec.start is not None:
             rec.start = pd_utils.get_time(rec.start)
@@ -89,33 +82,32 @@ class Data(state_variable.StateVar):
             duration_qtr = int(rec.duration_months / 3.0)
             print("  {}  months, {} quarters".format(rec.duration_months, duration_qtr))
         if (rec.start is not None) and (rec.duration_months is not None):
+            tdelt = datetime.timedelta(1.0)
             y_old = rec.start.year
-            end = pd_utils.get_quarter_date(duration_qtr,
-                                            rec.start.day, rec.start.month, rec.start.year) -\
-                                            datetime.timedelta(1.0)  # noqa
+            end = pd_utils.get_qtr_date(duration_qtr, rec.start) - tdelt
             print('{}  -  {}'.format(datetime.datetime.strftime(rec.start, '%Y/%m/%d'),
                                      datetime.datetime.strftime(end, '%Y/%m/%d')))
+            pdash = 10 * '-'
             proj_year = 0
             for q in range(duration_qtr):
                 if not q % 4:
                     proj_year += 1
                 py_sym = pd_utils.quarter_symbol(q, proj_year)
-                qtr = pd_utils.get_quarter_date(q, rec.start.day, rec.start.month, rec.start.year)
+                qtr = pd_utils.get_qtr_date(q, rec.start)
+                qstr = datetime.datetime.strftime(qtr, '%Y/%m/%d')
+                pspace = proj_year * ' '
                 if qtr.year > y_old:
                     y_old = qtr.year
-                    print("\t         ----------     ----------    {}{}"
-                          .format(((proj_year + 1) % 2) * ' ', str(proj_year)))
-                print("\tQtr {:2d}:  {}"
-                      .format(q + 1, datetime.datetime.strftime(qtr, '%Y/%m/%d')), end='')
-                qtr = pd_utils.get_quarter_date(q + 1,
-                                                rec.start.day, rec.start.month, rec.start.year) -\
-                                                datetime.timedelta(1.0)  # noqa
+                    print("\t         {}     {}  {}{}".format(pdash, pdash, pspace, str(proj_year)))
+                print("\tQtr {:2d}:  {}".format(q + 1, qstr), end='')
+                qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
 
 # ##################################################################FIND##################################################################
     def find(self, value, value2=None, field='value', match='weak', display='gantt', **kwargs):
-        """This will find records matching value, except for milestones which looks between
-            value,value2 dates (time format is yy/m/d)
+        """
+        This will find records matching value, except for milestones which looks between
+            value,value2 dates (time format is yy/mm/dd)
             value: value for which to search
             value2: second value if used e.g. for bounding dates [None]
             field:  field in which to search (or 'any'/'all')  [value]
@@ -127,24 +119,28 @@ class Data(state_variable.StateVar):
                     'initialized after'   <value>
                     'initialized between' <value> - <value2>
             display:  how to return data ('show'/'listing'/'gantt'/'file'/'noshow')
-                      If noshow returns the list of keys
+                      If noshow returns the list of indices
             kwargs:  one of the following records table fields upon which to filter
-                     - dtype, status, owner, other, id"""
+                     - dtype, status, owner, other, id
+        """
 
         # Set defaults and run through kwarg filters
-        self.Records.set_find_default()
-        self.Records.dtype = self.find_dtype
+        self.filter = FF.Filter()
+        self.filter.set_find_default()
+        self.filter.dtype = self.find_dtype
         for k, v in kwargs.items():
-            if k in self.Records.find_allowed:
+            if k in self.filter.find_allowed:
                 vl = pd_utils.listify(v)
-                setattr(self.Records, k, vl)
+                setattr(self.filter, k, vl)
             else:
                 print('keyword {} not allowed'.format(k))
                 continue
 
-        rec = FF.Records_fields()
         foundrec = []
-        if self.dbtype in self.db_list['ganttable'] and field.lower() == 'value':
+        if value == 'since':  # assumes read_data(since='') has been executed
+            for k in self.updated_collate:
+                foundrec.append(self.db.records.refname.index(k))
+        elif self.dbtype in self.db_list['ganttable'] and field.lower() == 'value':
             # ...value is a date, so checking dtype and date(s)
             if value2 is None:
                 value2 = value
@@ -166,9 +162,9 @@ class Data(state_variable.StateVar):
                     continue
                 status = self.check_ganttable_status(self.db.records.status[i], timevalue)
                 recns = self.db.mk_entry_ns('records', i)
-                if rec.filter_rec(self.Records, recns, status):
+                if self.filter.on_fields(recns, status):
                     if 'upda' in match.lower() or 'init' in match.lower():
-                        if rec.filter_on_updates(match, value1time, value2time, recns):
+                        if self.filter.on_updates(match, value1time, value2time, recns):
                             foundrec.append(i)
                     else:
                         if timevalue >= value1time and timevalue <= value2time:
@@ -189,16 +185,16 @@ class Data(state_variable.StateVar):
 
     def unique(self, field, filter_on=None, returnList=False):
         """
-        Searches the given field in self.data and comes up with a list of unique values within
-        that field.
+        Searches the given field in self.db.records and comes up with a list of
+        unique values within that field.
         """
         unique_values = []
-        for dat in self.data.keys():
+        if filter_on:
+            fld, val = filter_on.split('=')
+        for idat, chk in enumerate(getattr(self.db.records, field)):
             if filter_on:
-                fld, val = filter_on.split('=')
-                if self.data[dat][fld.strip().lower()].lower() != val.strip().lower():
+                if getattr(self.db.records, fld)[idat].lower() != val.strip().lower():
                     continue
-            chk = self.data[dat][field]
             if chk is None:
                 continue
             if type(chk) == list:
@@ -237,9 +233,8 @@ class Data(state_variable.StateVar):
         None or str
             Returns refname if one and only one is found, else None
         """
-        fndk = []
-        for dat in self.data.keys():
-            dbdesc = self.data[dat][search]
+        fndi = []
+        for i, dbdesc in enumerate(getattr(self.db.records, search)):
             if dbdesc is not None:
                 if isinstance(sval, str):
                     if not retain_case:
@@ -247,52 +242,43 @@ class Data(state_variable.StateVar):
                         dbdesc = dbdesc.lower()
                     if method == 'in':
                         if sval in dbdesc:
-                            fndk.append(dat)
+                            fndi.append(i)
                     elif method == 'start':
                         if dbdesc.startswith(sval):
-                            fndk.append(dat)
+                            fndi.append(i)
                     else:
                         if sval == dbdesc:
-                            fndk.append(dat)
+                            fndi.append(i)
                 else:
                     if sval == dbdesc:
-                        fndk.append(dat)
-        if len(fndk) == 1:
+                        fndi.append(i)
+        if len(fndi) == 1:
             if verbose:
-                self.show(fndk)
-            return fndk[0]
-        print("{} found".format(len(fndk)))
-        self.listing(fndk)
+                self.show(fndi)
+            return fndi[0]
+        print("{} found".format(len(fndi)))
+        self.listing(fndi)
         return None
-
-    def since(self, dstr):
-        dbconnect = sqlite3.connect(self.inFile)
-        qdb = dbconnect.cursor()
-        qdb_exec = "SELECT refname FROM updated WHERE updated>'{}'".format(dstr)
-        qdb.execute(qdb_exec)
-        updates = qdb.fetchall()
-        refnames = []
-        for u in updates:
-            print(u)
-            refnames.append(u[0].lower())
-        self.show(refnames, showTrace=False)
 
     def find_matching_refname(self, refname):
         """
         This takes a refname of unknown capitalization and finds the correct refname.
-        Returns None if none are found.
+        If a string is returned, it is an exact match.
+        If a list if returned, it is a lower()ed match to that/those.
         """
-        if refname in self.data.keys():
+        if refname in self.db.records.refname:
             return refname
-        if refname.lower() in self.cache_lower_data_keys:
-            for rn in self.data.keys():
-                if refname.lower() == rn.lower():
-                    return rn
-        return None
+        ret_refn = []
+        for db_refname in self.db.records.refname:
+            if refname.lower() == db_refname.lower():
+                ret_refn.append(db_refname)
+        return ret_refn
 
 # ##################################################################UPDATE##################################################################
     def add(self, dt=None, updater=None, upnote=None, **kwargs):
-        """Adds a new record (essentially a wrapper for update which generates a refname and enables new)
+        """
+        Adds a new record (essentially a wrapper for update which
+        generates a refname and enables new)
         """
         self.enable_new_entry = True
         if 'description' not in kwargs.keys():
@@ -309,7 +295,7 @@ class Data(state_variable.StateVar):
         else:
             refname_len = 100
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
-        while refname in self.data.keys():
+        while refname in self.db.records.refname:
             refname_len += 2
             if refname_len > refname_maxlen:
                 print("Not unique description:  {}\nNot adding record."
@@ -328,40 +314,30 @@ class Data(state_variable.StateVar):
             upnote is the note to be included in updated record (default is to query
             or 'initial' on creation)
             kwargs should be valid key=value pairs"""
-        self.readData()
-        db = sqlite3.connect(self.inFile)
-        qdb = db.cursor()
-        qdb.execute("SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(refname))
-        changing = qdb.fetchall()
+        try:
+            changing = self.db.records.refname.index(refname)
+        except ValueError:
+            changing = None
 
         # Checking new versus existing
         new_entry = False
         changed = False
-        if len(changing) > 1:
-            print('No update: duplicated refname in ' + self.inFile + ' (' + refname + ')')
-            db.close()
-            return False
-        elif len(changing) == 1:
-            if self.enable_new_entry:
-                print("No update:  {} already exists, can't add it as new.".format(refname))
-                db.close()
-                return False
-            else:
-                refname = changing[0][self.sqlmap['records']['refname'][0]]
-        elif len(changing) == 0:
+        if changing is None:
             if self.enable_new_entry:
                 if not self.quiet_update:
                     print('Adding new entry {}'.format(kwargs['description'][:30]))
-                new_id = qdb.execute("SELECT MAX(id) as id FROM records").fetchone()[0] + 1
-                qdb.execute("INSERT INTO records(refname, id) VALUES (?,?)", (refname, new_id))
+                new_id = max(self.db.records.id) + 1
                 if upnote is None:
                     upnote = 'Initial'
-                db.commit()
+                self.db.add(new_id)
                 changed = True
                 new_entry = True
             else:
                 print("No update: {} not present to update.".format(refname))
-                db.close()
+                return False
+        else:
+            if self.enable_new_entry:
+                print("No update:  {} already exists, can't add it as new.".format(refname))
                 return False
 
         # Process it
@@ -520,44 +496,27 @@ class Data(state_variable.StateVar):
                             print(rs + ' not found in entry ' + self.dbtype + ':' + rec)
 
 # ##################################################################VIEW##################################################################
-    def show_schema(self):
-        for tbl in self.sqlmap.keys():
-            print("Table:  {}".format(tbl))
-            print("\t{}".format(', '.join(self.fields[tbl])))
-
     def getview(self, view, howsort=None):
         if howsort is None:
             howsort = self.display_howsort
         else:
             howsort = pd_utils.listify(howsort)
         for hs in howsort:
-            if hs not in self.Records.required:
+            if hs not in self.db.tables['records'].cols:
                 raise ValueError("{} sort option not valid.".format(hs))
         if view == 'all':
-            view = list(self.data.keys())
+            view = range(self.num_records)
         else:
             view = pd_utils.listify(view)
         if howsort is None or not len(howsort):
-            thesekeys = view
+            these_ind = view
         else:
-            self.sortedKeys = self.sortby(howsort)
-            thesekeys = []
-            for key in self.sortedKeys:
-                if key in view:
-                    thesekeys.append(key)
-        return thesekeys
-
-    def display_namespace(self, name):
-        rec = Namespace(**self.data[name])
-        rec.owner = pd_utils.stringify(rec.owner)
-        if len(rec.updates):
-            s = '\tUpdated\n'
-            for uuu in rec.updates:
-                s += '\t\t{},  {},  {}\n'.format(uuu[0].strip(), uuu[1].strip(), uuu[2].strip())
-        else:
-            s = ''
-        rec.updates = s
-        return rec
+            self.sorted_ind = self.sortby(howsort)
+            these_ind = []
+            for i in self.sorted_ind:
+                if i in view:
+                    these_ind.append(i)
+        return these_ind
 
     def noshow(self, view):
         """This just returns the keys to view but doesn't display anything"""
@@ -569,8 +528,8 @@ class Data(state_variable.StateVar):
             fp = open(output, 'w')
         else:
             save2file = False
-        for name in view:
-            rec = self.display_namespace(name)
+        for i in view:
+            rec = self.db.mk_entry_ns('records', i)
             s = '({}) {}\n'.format(rec.id, rec.description)
             s += '\tvalue:        {}\n'.format(rec.value)
             s += '\tdtype:        {}\n'.format(rec.dtype)
@@ -594,7 +553,7 @@ class Data(state_variable.StateVar):
                 for tracetype in self.db_list['traceable']:
                     fieldName = tracetype + 'Trace'
                     trace_s += '\t' + tracetype + ' trace\n'
-                    xxxTrace = self.data[name][fieldName]
+                    xxxTrace = '0'#self.data[name][fieldName]
                     if len(xxxTrace) == 0 or len(xxxTrace[0]) == 0:
                         trace_s = ''
                     else:
@@ -609,8 +568,9 @@ class Data(state_variable.StateVar):
                 if not len(trace_s):
                     trace_s = '\tNo trace info found.\n'
                 s += trace_s
-            s += rec.updates
-            print(s)
+            for iupd in self.updated_collate[rec.refname]:
+                s += '{}: {}\n'.format(self.db.updated.note[iupd], self.db.updated.updated[iupd])
+            print(s + '\n')
             if save2file:
                 fp.write(s + '\n')
         if save2file:
@@ -627,7 +587,7 @@ class Data(state_variable.StateVar):
                 csvw = csv.writer(output_file)
                 csvw.writerow(s)
             for key in view:
-                rec = self.display_namespace(key)
+                rec = self.db.mk_entry_ns('records', key)
                 if tag == 'csv':
                     s = [rec.value, rec.description, rec.owner, rec.status, rec.other,
                          rec.notes, rec.commentary]
@@ -642,8 +602,8 @@ class Data(state_variable.StateVar):
         """
         Provides a short listing of the given records (default is all) in fixed widths.
         """
-        for key in view:
-            rec = self.display_namespace(key)
+        for i in view:
+            rec = self.db.mk_entry_ns('records', i)
             print('{:10.10} {} ({})'.format(rec.value, rec.description, rec.status))
 
     def gantt(self, view):
@@ -651,11 +611,11 @@ class Data(state_variable.StateVar):
             print('{} not ganttable:  ', self.dbtype)
             return
         for gantt_label in self.gantt_label:
-            if gantt_label not in self.Records.required:
+            if gantt_label not in self.db.tables['records'].cols:
                 print("{} label not found to use.".format(gantt_label))
                 return
         for gantt_annot in self.gantt_annot:
-            if gantt_annot not in self.Records.required:
+            if gantt_annot not in self.db.tables['records'].cols:
                 print("{} annot not found to use.".format(gantt_annot))
                 return
         labels = []
@@ -664,33 +624,34 @@ class Data(state_variable.StateVar):
         preds = []
         annots = []
         for v in view:
-            label = [self.data[v][gl] for gl in self.gantt_label]
+            field_rec = self.db.mk_entry_ns('records', v)
+            label = [getattr(field_rec, gl) for gl in self.gantt_label]
             label = pd_gantt.check_gantt_labels(': '.join(label), labels)[:self.gantt_label_length]
-            value = str(self.data[v]['value'])
-            status = str(self.data[v]['status']).lower().strip()
+            value = str(getattr(field_rec, 'value'))
+            status = str(getattr(field_rec, 'status')).lower().strip()
             annot = []
             for ga in self.gantt_annot:
-                if isinstance(self.data[v][ga], list):
-                    grp = [str(x) for x in self.data[v][ga]]
+                if isinstance(getattr(field_rec, ga), list):
+                    grp = [str(x) for x in getattr(field_rec, ga)]
                     annot.append(','.join(grp))
-                elif self.data[v][ga] is None:
+                elif getattr(field_rec, ga) is None:
                     annot = []
                 else:
-                    annot = [str(self.data[v][ga])]
+                    annot = [str(getattr(field_rec, ga))]
             annot = '; '.join(annot)
             predv = []
-            if 'milestoneTrace' in self.data[v].keys():
-                milepred = self.data[v]['milestoneTrace']
-                if self.dbtype == 'milestone' or self.dbtype == 'wbs':
-                    for x in milepred:
-                        if x in view:
-                            predv.append(self.data[x]['description'][0:self.gantt_label_length])
-            if 'taskTrace' in self.data[v].keys():
-                taskpred = self.data[v]['taskTrace']
-                if self.dbtype == 'task' or self.dbtype == 'wbs':
-                    for x in taskpred:
-                        if x in view:
-                            predv.append(self.data[x]['description'][0:self.gantt_label_length])
+            # if 'milestoneTrace' in field_rec.keys():
+            #     milepred = getattr(field_rec, 'milestoneTrace')
+            #     if self.dbtype == 'milestone' or self.dbtype == 'wbs':
+            #         for x in milepred:
+            #             if x in view:
+            #                 predv.append(getattr(field_rec, 'description')[0:self.gantt_label_length])  # noqa
+            # if 'taskTrace' in field_rec.keys():
+            #     taskpred = getattr(field_rec, 'taskTrace')
+            #     if self.dbtype == 'task' or self.dbtype == 'wbs':
+            #         for x in taskpred:
+            #             if x in view:
+            #                 predv.append(getattr(field_rec, 'description')[0:self.gantt_label_length])  # noqa
             labels.append(label)
             preds.append(predv)
             dates.append(value)
@@ -702,10 +663,10 @@ class Data(state_variable.StateVar):
         other_labels = None
         if len(self.gantt_annot):
             other_labels = annots
-        show_cdf = self.show_cdf and self.Records.status[0].lower() != 'late'
+        show_cdf = self.show_cdf and self.filter.status[0].lower() != 'late'
         pd_gantt.plotGantt(labels, dates, preds, tstats,
                            show_cdf=show_cdf, other_labels=other_labels)
-        if self.show_color_bar and self.Records.status[0].lower() != 'late':
+        if self.show_color_bar and self.filter.status[0].lower() != 'late':
             pd_gantt.colorBar()
 
     def check_ganttable_status(self, status, valuetime):
@@ -756,19 +717,18 @@ class Data(state_variable.StateVar):
         return (status_code, tcode)
 
     def sortby(self, sort_it_by):
-        sortdict = {}
-        if len(sort_it_by) > 1:
-            print("Sorting by more than one thing is not yet supported.  Using first term.")
-        sb = sort_it_by[0]
-        for k in self.data:
-            sdt = self.data[k][sb]
-            if sdt is None:
-                sdt = ' '
-            elif isinstance(sdt, list):
-                sdt = sdt[0]
-            sortdict[k] = sdt
-        sk = sorted(sortdict.items(), key=itemgetter(1, 0))
+        sortable_dict = {}
+        for i in range(self.num_records):
+            this_key = []
+            for sb in sort_it_by:
+                sdt = getattr(self.db.records, sb)[i]
+                if sdt is None:
+                    sdt = ' '
+                elif isinstance(sdt, list):
+                    ','.join(sdt)
+                this_key.append(sdt)
+            sortable_dict[tuple(this_key)] = i
         sl = []
-        for k in sk:
-            sl.append(k[0])
+        for key, val in sorted(sortable_dict.items()):
+            sl.append(val)
         return sl

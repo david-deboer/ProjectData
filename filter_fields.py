@@ -1,11 +1,11 @@
 import pd_utils
 
+find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
 
-class Records_fields:
+
+class Filter:
     def __init__(self):
-        self.required = ['refname', 'value', 'description', 'dtype', 'status',
-                         'owner', 'other', 'notes', 'id', 'commentary']
-        self.find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
+        self.find_allowed = find_allowed
         self.pass_thru = ['any', 'all', 'n/a', '-1', -1]  # do all if one of these
 
     def set_find_default(self):
@@ -26,18 +26,18 @@ class Records_fields:
                 return True
         return False
 
-    def filter_rec(self, Finding_class, rec, status):
+    def on_fields(self, rec, status):
         """
         Steps through the self.find_allowed as filter.
         Parameters:
         -----------
         Finding_class:  is a class Records_fields that has the search terms (as initially set in
                         self.set_find_defaults and modified by set_state or find call)
-        rec:  is one record of Data_class
+        rec:  is one record
         status:  is the status as returned by Data_class.check_ganttable_status
         """
-        for field in self.find_allowed:
-            finding = getattr(Finding_class, field)
+        for field in find_allowed:
+            finding = getattr(self, field)
             rec_val = getattr(rec, field)
             if field == 'status':
                 val = [status[0].lower()]
@@ -49,7 +49,7 @@ class Records_fields:
                 return False
         return True
 
-    def filter_on_updates(self, match, v1time, v2time, rec):
+    def on_updates(self, match, v1time, v2time, rec):
         """
         Filter on the updated table.
         """
