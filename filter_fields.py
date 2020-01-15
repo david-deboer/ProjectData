@@ -49,17 +49,23 @@ class Filter:
                 return False
         return True
 
-    def on_updates(self, match, v1time, v2time, rec):
+    def on_time(self, vtime, v1time, v2time, match, rec):
         """
-        Filter on the updated table.
+        Filter on time.
         """
-        event, timing = match.split()
-        if not rec[event]:
-            return False
-        if timing.lower() == 'before':
-            return rec[event] <= v2time
-        if timing.lower() == 'after':
-            return rec[event] >= v2time
-        if timing.lower() == 'between':
-            return rec[event] >= v1time and rec[event] <= v2time
+        if 'upda' in match.lower() or 'init' in match.lower():
+            event, timing = match.split()
+            print("In don't think this works.")
+            if not rec[event]:
+                return False
+            if timing.lower() == 'before':
+                return rec[event] <= v2time
+            if timing.lower() == 'after':
+                return rec[event] >= v2time
+            if timing.lower() == 'between':
+                return rec[event] >= v1time and rec[event] <= v2time
+        else:
+            if vtime >= v1time and vtime <= v2time:
+                return True
+
         return False

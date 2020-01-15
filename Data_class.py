@@ -1,4 +1,5 @@
 import os
+from argparse import Namespace
 import pd_gantt
 import pd_utils
 import filter_fields as FF
@@ -103,7 +104,7 @@ class Data(state_variable.StateVar):
                 qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
 
-# ##################################################################FIND##################################################################
+# ###############################################FIND###################################################
     def find(self, value, value2=None, field='value', match='weak', display='gantt', **kwargs):
         """
         This will find records matching value, except for milestones which looks between
@@ -162,15 +163,11 @@ class Data(state_variable.StateVar):
                     continue
                 status = self.check_ganttable_status(self.db.records.status[i], timevalue)
                 recns = self.db.mk_entry_ns('records', i)
-                if self.filter.on_fields(recns, status):
-                    if 'upda' in match.lower() or 'init' in match.lower():
-                        if self.filter.on_updates(match, value1time, value2time, recns):
-                            foundrec.append(i)
-                    else:
-                        if timevalue >= value1time and timevalue <= value2time:
-                            foundrec.append(i)
+                if self.filter.on_fields(recns, status) and\
+                   self.filter.on_time(timevalue, value1time, value2time, match, recns):
+                    foundrec.append(i)
         else:
-            print("This code isn't really checked out out for non-gantt stuff...")
+            print("This code for non-gantt stuff doesn't work")
             for dat in self.data.keys():
                 for fff in self.data[dat].keys():
                     if pd_utils.searchfield(value, self.data[dat][fff], match):
@@ -274,7 +271,7 @@ class Data(state_variable.StateVar):
                 ret_refn.append(db_refname)
         return ret_refn
 
-# ##################################################################UPDATE##################################################################
+# ################################################UPDATE################################################
     def add(self, dt=None, updater=None, upnote=None, **kwargs):
         """
         Adds a new record (essentially a wrapper for update which
@@ -307,29 +304,35 @@ class Data(state_variable.StateVar):
         return
 
     def update(self, refname, dt=None, updater=None, upnote=None, **kwargs):
-        """Updates a record field as well as the updated db, adds if not present
+        """
+        Updates a record field as well as the updated db, adds if not present
             name is the refname of the record, if not present a new entry is made
             dt is the YY/MM/DD of updated time (default is now)
             updater is the name of the updater (default is to query)
             upnote is the note to be included in updated record (default is to query
             or 'initial' on creation)
-            kwargs should be valid key=value pairs"""
+            kwargs should be valid key=value pairs
+        """
         try:
-            changing = self.db.records.refname.index(refname)
+            i_chng = self.db.records.refname.index(refname)
+            changing = self.db.mk_entry_ns('records', i_chng)
         except ValueError:
             changing = None
 
-        # Checking new versus existing
+        update_entry = Namespace()
         new_entry = False
         changed = False
         if changing is None:
             if self.enable_new_entry:
-                if not self.quiet_update:
-                    print('Adding new entry {}'.format(kwargs['description'][:30]))
-                new_id = max(self.db.records.id) + 1
+                update_entry.refname = refname
+                if 'id' not in kwargs.keys():
+                    id = max(self.db.records.id) + 1
+                else:
+                    id = kwargs['id']
+                update_entry.id = id
                 if upnote is None:
                     upnote = 'Initial'
-                self.db.add(new_id)
+                self.db.add('records', table_entries=update_entry)
                 changed = True
                 new_entry = True
             else:
@@ -344,32 +347,23 @@ class Data(state_variable.StateVar):
         for fld, new_value in kwargs.items():
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
-                if ',' in new_value:
-                    trlist = new_value.split(',')
-                else:
-                    trlist = [new_value]
+                trlist = new_value.split(',')
+                trace_entries = Namespace(refname=[], tracename=[], tracetype=[])
                 for tr in trlist:
-                    print('\tAdding trace ' + ttype + '.' + tr + ' to ' + refname)
-                    qf = (refname, tr, ttype, '')
-                    qdb.execute("INSERT INTO trace(refname,tracename,tracetype,comment) VALUES (?,?,?,?)", qf)  # noqa
+                    trace_entries.refname.append(refname)
+                    trace_entries.tracename.append(tr)
+                    trace_entries.tracetype.append(ttype)
+                    print('\tAdding trace {}.{} to {}'.format(ttype, tr, refname))
+                self.db.add('trace', table_entries=trace_entries)
                 changed = True
-            elif fld.lower() == 'refname':  # Do last
+            elif fld == 'refname':  # Do last
                 continue
-            elif fld not in self.sqlmap['records'].keys():
+            elif fld not in self.db['tables'].records.cols:
                 print('{} is not a database field - skipping'.format(fld))
                 continue
             else:
-                if new_entry:
-                    desc = kwargs['description']
-                else:
-                    desc = self.data[refname]['description']
-                ell = '(...)'
-                if len(desc) < 20:
-                    ell = ''
-                if not self.quiet_update:
-                    print('\tChanging {}{}.{} to "{}"'.format(desc[:20], ell, fld, new_value))
-                qdb_exec = "UPDATE records SET {}='{}' WHERE refname='{}'".format(fld, new_value, refname)  # noqa
-                qdb.execute(qdb_exec)
+                new_data = {fld: new_value}
+                self.db.update('records', changing, **new_data)
                 changed = True
         if 'refname' in kwargs.keys():  # Do last
             print('\tChanging name {} to {}'.format(refname, kwargs['refname']))
@@ -378,14 +372,8 @@ class Data(state_variable.StateVar):
                 changed = True
 
         if changed:  # Need to update 'updated' database
-            db.commit()
-            db.close()
-            self.readData()
-            db = sqlite3.connect(self.inFile)
-            qdb = db.cursor()
+            self.read_data()
             qdb_exec = "SELECT * FROM updated where refname='{}' COLLATE NOCASE ORDER BY level".format(refname)  # noqa
-            qdb.execute(qdb_exec)
-            upd = qdb.fetchall()
             try:
                 new_update = upd[-1][-1] + 1
             except IndexError:
@@ -406,10 +394,7 @@ class Data(state_variable.StateVar):
                     oldnote = ''
                 full_upnote = upnote + ' :: <Previous note: ' + oldnote + '>'
             qv = (refname, dt, updater, full_upnote, new_update)
-            qdb.execute(qdb_exec, qv)
-            db.commit()
             self.checkTrace(refname)
-        db.close()
         return changed
 
     def change_refName(self, old_name=None, new_name=None):
@@ -420,39 +405,25 @@ class Data(state_variable.StateVar):
         print("WARNING:  dbEM and pbwd not defined!!!!")
         dbEM = None
         pbwd = None
-        db = sqlite3.connect(self.inFile)
-        qdb = db.cursor()
+        changing = 1  # qdb.fetchall()
         qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(old_name)
-        qdb.execute(qdb_exec)
-        changing = qdb.fetchall()
         if len(changing) == 1:
             qdb_exec = "UPDATE records SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
-            qdb.execute(qdb_exec)
             qdb_exec = "UPDATE trace SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
-            qdb.execute(qdb_exec)
             qdb_exec = "UPDATE updated SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
-            qdb.execute(qdb_exec)
-            db.commit()
-            db.close()
         elif len(changing) > 1:
             print('Ambiguous entry:  {} has {} entries'.format(old_name, len(changing)))
-            db.close()
             return False
         else:
             print('\tNone to change')
-            db.close()
             return False
         for tr in self.db_list['traceable']:
             dirName = self.db_list[tr][dbEM['dirName']]
             path = os.path.join(pbwd, dirName)
             inFile = os.path.join(path, self.db_list[tr][dbEM['inFile']])
             print('\tChecking ' + inFile)
-            db = sqlite3.connect(inFile)
-            qdb = db.cursor()
             qdb_exec = ("SELECT * FROM trace WHERE tracename='{}' AND "
                         "tracetype='{}'".format(old_name, self.dbtype))
-            qdb.execute(qdb_exec)
-            changing = qdb.fetchall()
             if len(changing) > 0:
                 plural = 's'
                 if len(changing) == 1:
@@ -460,11 +431,8 @@ class Data(state_variable.StateVar):
                 print('\t\t{} record{}'.format(len(changing), plural))
                 qdb_exec = ("UPDATE trace SET tracename='{}' WHERE tracename='{}' AND "
                             "tracetype='{}'".format(new_name, old_name, self.dbtype))
-                qdb.execute(qdb_exec)
-                db.commit()
             else:
                 print('\t\tNone to change')
-            db.close()
         self.readData()
         return True
 
@@ -472,8 +440,6 @@ class Data(state_variable.StateVar):
         print("WARNING:  dbEM and pbwd not defined!!!!")
         dbEM = None
         pbwd = None
-        if not self.quiet_update:
-            print('checkTrace not implemented...')
         return
         if checkrec == 'all':
             checkrec = self.data.keys()
@@ -484,14 +450,10 @@ class Data(state_variable.StateVar):
             path = os.path.join(pbwd, dirName)
             inFile = os.path.join(path, self.db_list[tr][dbEM['inFile']])
             print('Checking {} {}Trace in {} against {}'.format(self.dbtype, tr, checkrec, inFile))
-            db = sqlite3.connect(inFile)
-            qdb = db.cursor()
             for rec in checkrec:
                 for rs in self.data[rec][tr + 'Trace']:
                     if len(rs) > 0:
                         qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(rs)  # noqa
-                        qdb.execute(qdb_exec)
-                        checking = qdb.fetchall()
                         if len(checking) == 0:
                             print(rs + ' not found in entry ' + self.dbtype + ':' + rec)
 
