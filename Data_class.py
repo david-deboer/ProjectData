@@ -2,7 +2,7 @@ import os
 from argparse import Namespace
 import pd_gantt
 import pd_utils
-import filter_fields as FF
+import filters as FF
 import datetime
 from pysqlite_simple import tables
 from ddb_util import state_variable
@@ -30,7 +30,7 @@ class Data(state_variable.StateVar):
         self.dirName = self.db_list[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.db_list[dbtype]['dbfilename'])
         self.db = tables.DB(self.inFile)
-        self.enable_new_entry = False
+        self.make_new_entry = False
 
     def read_data(self, since=None):
         """
@@ -46,15 +46,15 @@ class Data(state_variable.StateVar):
            sqlite3 database.db < database.txt                is the inverse
         """
 
-        self.db.read('records', order_by='id')
+        self.db.read_table('records', order_by='id')
         self.num_records = len(self.db.records.refname)
         if since is not None:
             print("Type mi.find('since') to see records.")
-            self.db.read('updated', order_by='updated', updated='>{}'.format(since))
+            self.db.read_table('updated', order_by='updated', updated='>{}'.format(since))
         else:
-            self.db.read('updated', order_by='updated')
-        self.db.read('types')
-        self.db.read('trace')
+            self.db.read_table('updated', order_by='updated')
+        self.db.read_table('types')
+        self.db.read_table('trace')
 
         # collate updated and trace for refname
         self.updated_collate = {}
@@ -88,7 +88,7 @@ class Data(state_variable.StateVar):
             end = pd_utils.get_qtr_date(duration_qtr, rec.start) - tdelt
             print('{}  -  {}'.format(datetime.datetime.strftime(rec.start, '%Y/%m/%d'),
                                      datetime.datetime.strftime(end, '%Y/%m/%d')))
-            pdash = 10 * '-'
+            pd10 = 10 * '-'
             proj_year = 0
             for q in range(duration_qtr):
                 if not q % 4:
@@ -99,7 +99,7 @@ class Data(state_variable.StateVar):
                 pspace = proj_year * ' '
                 if qtr.year > y_old:
                     y_old = qtr.year
-                    print("\t         {}     {}  {}{}".format(pdash, pdash, pspace, str(proj_year)))
+                    print("\t         {}     {}  {}{}".format(pd10, pd10, pspace, str(proj_year)))
                 print("\tQtr {:2d}:  {}".format(q + 1, qstr), end='')
                 qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
@@ -148,30 +148,26 @@ class Data(state_variable.StateVar):
                 value = self.projectStart
             value1time = pd_utils.get_time(value)
             value2time = pd_utils.get_time(value2)
-            if not isinstance(value1time, datetime.datetime) or\
-               not isinstance(value2time, datetime.datetime):
+            if not isinstance(value1time, datetime.datetime) or not isinstance(value2time, datetime.datetime):  # noqa
                 return 0
             for i, rdata in enumerate(getattr(self.db.records, field)):  # Loop over all records
                 if rdata is None:
                     continue
                 if '-' in rdata:  # A date range is given - use first
-                    val2check = rdata.split('-')[0].strip()
+                    val2check = pd_utils.get_time(rdata.split('-')[0].strip())
                 else:
-                    val2check = str(rdata)
-                timevalue = pd_utils.get_time(val2check)
-                if not isinstance(timevalue, datetime.datetime):
+                    val2check = pd_utils.get_time(str(rdata).strip())
+                if not isinstance(val2check, datetime.datetime):
                     continue
-                status = self.check_ganttable_status(self.db.records.status[i], timevalue)
+                status = self.check_ganttable_status(self.db.records.status[i], val2check)
                 recns = self.db.mk_entry_ns('records', i)
                 if self.filter.on_fields(recns, status) and\
-                   self.filter.on_time(timevalue, value1time, value2time, match, recns):
+                   self.filter.on_time(val2check, value1time, value2time, match, recns):
                     foundrec.append(i)
         else:
-            print("This code for non-gantt stuff doesn't work")
-            for dat in self.data.keys():
-                for fff in self.data[dat].keys():
-                    if pd_utils.searchfield(value, self.data[dat][fff], match):
-                        foundrec.append(dat)
+            for i, rdata in enumerate(getattr(self.db.records, field)):
+                if pd_utils.searchfield(value, rdata, match):
+                    foundrec.append(i)
         if len(foundrec):
             foundrec = self.getview(foundrec, self.display_howsort)
             if display not in self.displayMethods.keys():
@@ -214,7 +210,7 @@ class Data(state_variable.StateVar):
 
         Parameters
         ----------
-        sval : appropriate database field
+        sval :  value for which to search
             value to look for
         search : str
             database field to look within
@@ -232,27 +228,12 @@ class Data(state_variable.StateVar):
         """
         fndi = []
         for i, dbdesc in enumerate(getattr(self.db.records, search)):
-            if dbdesc is not None:
-                if isinstance(sval, str):
-                    if not retain_case:
-                        sval = sval.lower()
-                        dbdesc = dbdesc.lower()
-                    if method == 'in':
-                        if sval in dbdesc:
-                            fndi.append(i)
-                    elif method == 'start':
-                        if dbdesc.startswith(sval):
-                            fndi.append(i)
-                    else:
-                        if sval == dbdesc:
-                            fndi.append(i)
-                else:
-                    if sval == dbdesc:
-                        fndi.append(i)
+            if FF.agrees(sval, dbdesc, method=method, retain_case=retain_case):
+                fndi.append(i)
         if len(fndi) == 1:
             if verbose:
                 self.show(fndi)
-            return fndi[0]
+            return self.db.records.refname[fndi[0]]
         print("{} found".format(len(fndi)))
         self.listing(fndi)
         return None
@@ -277,31 +258,35 @@ class Data(state_variable.StateVar):
         Adds a new record (essentially a wrapper for update which
         generates a refname and enables new)
         """
-        self.enable_new_entry = True
+        self.make_new_entry = True
         if 'description' not in kwargs.keys():
             print("New entries must include a description.\nNot adding record.")
             return
         if 'value' not in kwargs.keys():
             print("New entries must include a value.\nNot adding record.")
             return
-        refname_maxlen = len(pd_utils.make_refname(kwargs['description'], 1000))
+        refname_maxlen = len(pd_utils.make_refname(kwargs['description'], 200))
         if 'refname' in kwargs.keys():
-            refname = kwargs['refname']
-            refname_len = len(refname)
-            del kwargs['refname']
+            if kwargs['refname'] in self.db.records.refname:
+                refname = None
+            else:
+                refname = kwargs['refname']
+                refname_len = len(refname)
+                del kwargs['refname']
         else:
-            refname_len = 100
+            refname_len = 80
             refname = pd_utils.make_refname(kwargs['description'], refname_len)
-        while refname in self.db.records.refname:
-            refname_len += 2
-            if refname_len > refname_maxlen:
-                print("Not unique description:  {}\nNot adding record."
-                      .format(kwargs['description']))
-                return
-            refname = pd_utils.make_refname(kwargs['description'], refname_len)
-        self.update(refname, dt, updater, upnote, **kwargs)
-        self.enable_new_entry = False
-        return
+            while refname in self.db.records.refname:
+                refname_len += 2
+                if refname_len > refname_maxlen:
+                    refname = None
+                    break
+                refname = pd_utils.make_refname(kwargs['description'], refname_len)
+        if refname is None:
+            print("Not unique refname for {}\nNot adding record.".format(kwargs['description']))
+        else:
+            self.update(refname, dt, updater, upnote, **kwargs)
+        self.make_new_entry = False
 
     def update(self, refname, dt=None, updater=None, upnote=None, **kwargs):
         """
@@ -318,32 +303,29 @@ class Data(state_variable.StateVar):
             changing = self.db.mk_entry_ns('records', i_chng)
         except ValueError:
             changing = None
+        if changing is None and not self.make_new_entry:
+            print("No update: {} not present to update.".format(refname))
+            return False
+        elif changing is not None and self.make_new_entry:
+            print("No update:  {} already exists, can't add it as new.".format(refname))
+            return False
 
         update_entry = Namespace()
-        new_entry = False
         changed = False
         if changing is None:
-            if self.enable_new_entry:
-                update_entry.refname = refname
-                if 'id' not in kwargs.keys():
-                    id = max(self.db.records.id) + 1
-                else:
-                    id = kwargs['id']
-                update_entry.id = id
-                if upnote is None:
-                    upnote = 'Initial'
-                self.db.add('records', table_entries=update_entry)
-                changed = True
-                new_entry = True
+            update_entry.refname = refname
+            if 'id' not in kwargs.keys():
+                id = max(self.db.records.id) + 1
             else:
-                print("No update: {} not present to update.".format(refname))
-                return False
-        else:
-            if self.enable_new_entry:
-                print("No update:  {} already exists, can't add it as new.".format(refname))
-                return False
-
+                id = kwargs['id']
+            update_entry.id = id
+            if upnote is None:
+                upnote = 'Initial'
+            self.db.add_entry('records', entries_to_add=update_entry)
+            changed = True
         # Process it
+        new_data = {}
+        old_data = {}
         for fld, new_value in kwargs.items():
             if 'trace' in fld.lower():
                 ttype = fld[0:-5]
@@ -354,108 +336,44 @@ class Data(state_variable.StateVar):
                     trace_entries.tracename.append(tr)
                     trace_entries.tracetype.append(ttype)
                     print('\tAdding trace {}.{} to {}'.format(ttype, tr, refname))
-                self.db.add('trace', table_entries=trace_entries)
+                self.db.add_entry('trace', entries_to_add=trace_entries)
                 changed = True
-            elif fld == 'refname':  # Do last
+            elif fld == 'refname':
+                print("Don't do that.")
                 continue
             elif fld not in self.db['tables'].records.cols:
                 print('{} is not a database field - skipping'.format(fld))
                 continue
             else:
-                new_data = {fld: new_value}
-                self.db.update('records', changing, **new_data)
+                old_data[fld] = getattr(self.records, fld)
+                new_data[fld] = new_value
                 changed = True
-        if 'refname' in kwargs.keys():  # Do last
-            print('\tChanging name {} to {}'.format(refname, kwargs['refname']))
-            print("==> I'm not entirely sure this is comprehensive yet or not")
-            if self.change_refName(refname, kwargs['refname']):
-                changed = True
+        if len(list(new_data.keys())):
+            self.db.update_entry('records', changing, **new_data)
 
-        if changed:  # Need to update 'updated' database
-            self.read_data()
-            qdb_exec = "SELECT * FROM updated where refname='{}' COLLATE NOCASE ORDER BY level".format(refname)  # noqa
-            try:
-                new_update = upd[-1][-1] + 1
-            except IndexError:
-                new_update = 0
-            qdb_exec = "INSERT INTO updated VALUES (?,?,?,?,?)"
+        if changed:  # Need to update 'updated' database table
+            self.db.read_table('records')
+            old_vals = ''
+            for k, v in old_data.items():
+                old_vals += '[{}: {}]'.format(k, v)
+
+            nupd = Namespace(refname=refname, previous=old_vals)
             if dt is None:
                 bbb = datetime.datetime.now()
-                dt = "{:02d}/{:02d}/{:02d}".format(bbb.year - 2000, bbb.month, bbb.day)
+                nupd.updated = "{:02d}/{:02d}/{:02d}".format(bbb.year - 2000, bbb.month, bbb.day)
+            else:
+                nupd.updated = dt
             if updater is None:
-                updater = input("Who is updating:  ")
+                nupd.by = input("Who is updating:  ")
+            else:
+                nupd.by = updater
             if upnote is None:
-                upnote = input("Update note to append previous record notes:  ")
-            if new_entry:
-                full_upnote = upnote
+                nupd.note = input("Update note to append previous record notes:  ")
             else:
-                oldnote = changing[0][self.sqlmap['records']['notes'][0]]
-                if oldnote is None:
-                    oldnote = ''
-                full_upnote = upnote + ' :: <Previous note: ' + oldnote + '>'
-            qv = (refname, dt, updater, full_upnote, new_update)
-            self.checkTrace(refname)
+                nupd.note = upnote
+
+            self.db.add_entry('updated', nupd)
         return changed
-
-    def change_refName(self, old_name=None, new_name=None):
-        """Need to update all dbs when the refname is changed"""
-        print("This will change the refname '{}' to '{}' in all databases"
-              .format(old_name, new_name))
-        print("\tFirst in " + self.inFile)
-        print("WARNING:  dbEM and pbwd not defined!!!!")
-        dbEM = None
-        pbwd = None
-        changing = 1  # qdb.fetchall()
-        qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(old_name)
-        if len(changing) == 1:
-            qdb_exec = "UPDATE records SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
-            qdb_exec = "UPDATE trace SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
-            qdb_exec = "UPDATE updated SET refname='{}' WHERE refname='{}'".format(new_name, old_name)  # noqa
-        elif len(changing) > 1:
-            print('Ambiguous entry:  {} has {} entries'.format(old_name, len(changing)))
-            return False
-        else:
-            print('\tNone to change')
-            return False
-        for tr in self.db_list['traceable']:
-            dirName = self.db_list[tr][dbEM['dirName']]
-            path = os.path.join(pbwd, dirName)
-            inFile = os.path.join(path, self.db_list[tr][dbEM['inFile']])
-            print('\tChecking ' + inFile)
-            qdb_exec = ("SELECT * FROM trace WHERE tracename='{}' AND "
-                        "tracetype='{}'".format(old_name, self.dbtype))
-            if len(changing) > 0:
-                plural = 's'
-                if len(changing) == 1:
-                    plural = ''
-                print('\t\t{} record{}'.format(len(changing), plural))
-                qdb_exec = ("UPDATE trace SET tracename='{}' WHERE tracename='{}' AND "
-                            "tracetype='{}'".format(new_name, old_name, self.dbtype))
-            else:
-                print('\t\tNone to change')
-        self.readData()
-        return True
-
-    def checkTrace(self, checkrec='all'):
-        print("WARNING:  dbEM and pbwd not defined!!!!")
-        dbEM = None
-        pbwd = None
-        return
-        if checkrec == 'all':
-            checkrec = self.data.keys()
-        elif type(checkrec) is not list:
-            checkrec = [checkrec]
-        for tr in self.db_list['traceable']:
-            dirName = self.db_list[tr][dbEM['dirName']]
-            path = os.path.join(pbwd, dirName)
-            inFile = os.path.join(path, self.db_list[tr][dbEM['inFile']])
-            print('Checking {} {}Trace in {} against {}'.format(self.dbtype, tr, checkrec, inFile))
-            for rec in checkrec:
-                for rs in self.data[rec][tr + 'Trace']:
-                    if len(rs) > 0:
-                        qdb_exec = "SELECT * FROM records WHERE refname='{}' COLLATE NOCASE".format(rs)  # noqa
-                        if len(checking) == 0:
-                            print(rs + ' not found in entry ' + self.dbtype + ':' + rec)
 
 # ##################################################################VIEW##################################################################
     def getview(self, view, howsort=None):
@@ -481,7 +399,7 @@ class Data(state_variable.StateVar):
         return these_ind
 
     def noshow(self, view):
-        """This just returns the keys to view but doesn't display anything"""
+        """This just returns the indices to view but doesn't display anything"""
         return view
 
     def show(self, view, output='stdout'):
@@ -502,34 +420,9 @@ class Data(state_variable.StateVar):
                 s += '\tother:       {}\n'.format(rec.other)
             if rec.commentary:
                 s += '\tcommentary:  {}\n'.format(rec.commentary)
-            # ---1---# implement this later for all tracetypes
-# #            if self.dbtype!='reqspec':
-# #                dirName = self.db_list['reqspec'][dbEM['dirName']]
-# #                path = os.path.join(pbwd,dirName)
-# #                inFile = os.path.join(path,self.db_list['reqspec'][dbEM['inFile']])
-# #                rsdata = self.readData(inFile)
-# #            else:
-# #                rsdata = self.data
             if self.show_trace:
-                trace_s = ''
                 for tracetype in self.db_list['traceable']:
-                    fieldName = tracetype + 'Trace'
-                    trace_s += '\t' + tracetype + ' trace\n'
-                    xxxTrace = '0'#self.data[name][fieldName]
-                    if len(xxxTrace) == 0 or len(xxxTrace[0]) == 0:
-                        trace_s = ''
-                    else:
-                        for xxx in xxxTrace:
-                            if len(xxx) > 0:
-                                trace_s += '\t\t{}\n:  '.format(xxx)
-                                # ---1---#
-# #                                try:
-# #                                    s+=(rsdata[rrr][self.entryMap['value']]+'\n')
-# #                                except:
-# #                                    s+='not found in database\n'
-                if not len(trace_s):
-                    trace_s = '\tNo trace info found.\n'
-                s += trace_s
+                    print("Need to implement check {}".format(tracetype))
             for iupd in self.updated_collate[rec.refname]:
                 s += '{}: {}\n'.format(self.db.updated.note[iupd], self.db.updated.updated[iupd])
             print(s + '\n')
@@ -580,15 +473,11 @@ class Data(state_variable.StateVar):
             if gantt_annot not in self.db.tables['records'].cols:
                 print("{} annot not found to use.".format(gantt_annot))
                 return
-        labels = []
-        dates = []
-        tstats = []
-        preds = []
-        annots = []
+        gdat = Namespace(labels=[], dates=[], tstats=[], preds=[], annots=[])
         for v in view:
             field_rec = self.db.mk_entry_ns('records', v)
             label = [getattr(field_rec, gl) for gl in self.gantt_label]
-            label = pd_gantt.check_gantt_labels(': '.join(label), labels)[:self.gantt_label_length]
+            label = pd_gantt.check_gantt_labels(': '.join(label), gdat.labels)[:self.gantt_label_length]  # noqa
             value = str(getattr(field_rec, 'value'))
             status = str(getattr(field_rec, 'status')).lower().strip()
             annot = []
@@ -602,31 +491,31 @@ class Data(state_variable.StateVar):
                     annot = [str(getattr(field_rec, ga))]
             annot = '; '.join(annot)
             predv = []
-            # if 'milestoneTrace' in field_rec.keys():
-            #     milepred = getattr(field_rec, 'milestoneTrace')
-            #     if self.dbtype == 'milestone' or self.dbtype == 'wbs':
-            #         for x in milepred:
-            #             if x in view:
-            #                 predv.append(getattr(field_rec, 'description')[0:self.gantt_label_length])  # noqa
-            # if 'taskTrace' in field_rec.keys():
-            #     taskpred = getattr(field_rec, 'taskTrace')
-            #     if self.dbtype == 'task' or self.dbtype == 'wbs':
-            #         for x in taskpred:
-            #             if x in view:
-            #                 predv.append(getattr(field_rec, 'description')[0:self.gantt_label_length])  # noqa
-            labels.append(label)
-            preds.append(predv)
-            dates.append(value)
-            annots.append(annot)
+            if 'milestoneTrace' in dir(field_rec):
+                milepred = getattr(field_rec, 'milestoneTrace')
+                if self.dbtype == 'milestone' or self.dbtype == 'wbs':
+                    for x in milepred:
+                        if x in view:
+                            predv.append(getattr(field_rec, 'description')[0:self.gantt_label_length])  # noqa
+            if 'taskTrace' in dir(field_rec):
+                taskpred = getattr(field_rec, 'taskTrace')
+                if self.dbtype == 'task' or self.dbtype == 'wbs':
+                    for x in taskpred:
+                        if x in view:
+                            predv.append(getattr(field_rec, 'description')[0:self.gantt_label_length])  # noqa
+            gdat.labels.append(label)
+            gdat.preds.append(predv)
+            gdat.dates.append(value)
+            gdat.annots.append(annot)
             status_return = self.check_ganttable_status(status, value)
-            tstats.append(status_return)
+            gdat.tstats.append(status_return)
         if not self.plot_predecessors:
-            preds = None
+            gdat.preds = None
         other_labels = None
         if len(self.gantt_annot):
-            other_labels = annots
+            other_labels = gdat.annots
         show_cdf = self.show_cdf and self.filter.status[0].lower() != 'late'
-        pd_gantt.plotGantt(labels, dates, preds, tstats,
+        pd_gantt.plotGantt(gdat.labels, gdat.dates, gdat.preds, gdat.tstats,
                            show_cdf=show_cdf, other_labels=other_labels)
         if self.show_color_bar and self.filter.status[0].lower() != 'late':
             pd_gantt.colorBar()

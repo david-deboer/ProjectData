@@ -3,6 +3,29 @@ import pd_utils
 find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
 
 
+def agrees(supval, chkval, method='equals', retain_case=True):
+    if chkval is not None:
+        if isinstance(supval, str):
+            if not retain_case:
+                supval = supval.lower()
+                chkval = chkval.lower()
+            if method == 'in':
+                if supval in chkval:
+                    return True
+            elif method == 'start':
+                if chkval.startswith(supval):
+                    return True
+            else:
+                if supval == chkval:
+                    return True
+        else:
+            if supval == chkval:
+                return True
+    elif supval is None:
+        return True
+    return False
+
+
 class Filter:
     def __init__(self):
         self.find_allowed = find_allowed

@@ -13,7 +13,8 @@ import Data_class
 undone = ['late', 'moved', 'none', 'unknown']
 print('undone defined: ', undone)
 
-available_db = sorted(Data_class.pd_utils.get_db_json('databases.json').keys())
+available_db = sorted(Data_class.pd_utils.get_db_json('databases.json')[0].keys())
+available_db = ['milestone']  # for now since I don't use any others
 if 'architecture' in available_db:
     import Arch_class
 if 'cost' in available_db:
@@ -24,7 +25,7 @@ print("Read in:")
 for db in available_db:
     if db == 'milestone':
         mi = Data_class.Data('milestone')
-        mi.readData()
+        mi.read_data()
         print("mi : milestone")
     elif db == 'task':
         ta = Data_class.Data('task', verbose=False)
@@ -64,9 +65,9 @@ elif 'breakthroughlisten' in cwd:
 print("\nSetting defaults for {}".format(project_name))
 
 if project_name == 'HERA':
-    mi.set_state(find_dtype=['nsfB', 'nsfC', 'internal'])
-    mi.set_state(gantt_annot=['owner'])
-    mi.set_state(show_trace=False)
+    mi.state(find_dtype=['nsfB', 'nsfC', 'internal'])
+    mi.state(gantt_annot=['owner'])
+    mi.state(show_trace=False)
 elif project_name == 'BreakthroughListen':
-    mi.set_state(gantt_label=['other', 'description'])
-    mi.set_state(find_dtype=['T1', 'T1HW', 'T2'])
+    mi.state(gantt_label=['other', 'description'])
+    mi.state(find_dtype=['T1', 'T1HW', 'T2'])

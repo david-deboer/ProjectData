@@ -29,25 +29,25 @@ def get_db_json(dbjson='databases.json', consolidate=['ganttable', 'traceable'])
     return databases, x['ganttable_status']
 
 
-def searchfield(value, infield, match):
+def searchfield(value, entry_val, match):
     foundMatch = False
-    if type(infield) == list:
-        foundMatch = searchlist(value, infield, match)
-    elif isinstance(infield, str) and isinstance(value, str):
+    if type(entry_val) == list:
+        foundMatch = searchlist(value, entry_val, match)
+    elif isinstance(entry_val, str) and isinstance(value, str):
         value = value.strip()
-        infield = infield.strip()
+        entry_val = entry_val.strip()
         if match == 'weak':
-            foundMatch = value.lower() in infield.lower()
+            foundMatch = value.lower() in entry_val.lower()
         elif match == 'moderate':
-            foundMatch = value in infield
+            foundMatch = value in entry_val
         elif match == 'strong':
-            foundMatch = value.lower() == infield.lower()
+            foundMatch = value.lower() == entry_val.lower()
         elif match == 'verystrong':
-            foundMatch = value == infield
+            foundMatch = value == entry_val
         else:  # default is weak
-            foundMatch = value.lower() in infield.lower()
+            foundMatch = value.lower() in entry_val.lower()
     else:
-        foundMatch = value == infield
+        foundMatch = value == entry_val
     return foundMatch
 
 
