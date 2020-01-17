@@ -18,15 +18,15 @@ class Data(state_variable.StateVar):
         type, updated)
     """
 
-    def __init__(self, dbtype, projectStart='14/09/01', db_json_file='databases.json', **kwargs):
+    def __init__(self, dbtype, projectStart='14/09/01', db_file='databases.json', **kwargs):
         super().__init__([])
-        self.sv_json(json_file=db_json_file, keys_to_use='state_variables', use_to_initialize=True)
+        self.sv_load(load_from=db_file, keys_to_use='state_variables', use_to_initialize=db_file)
         self.state(**kwargs)
         self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                                'noshow': self.noshow, 'file': self.fileout}
         self.projectStart = projectStart
         self.dbtype = dbtype
-        self.db_list, self.ganttable_status = pd_utils.get_db_json(db_json_file)
+        self.db_list, self.ganttable_status = pd_utils.get_db_json(db_file)
         self.dirName = self.db_list[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.db_list[dbtype]['dbfilename'])
         self.db = tables.DB(self.inFile)
