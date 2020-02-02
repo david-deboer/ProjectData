@@ -1,15 +1,13 @@
 """
 Creates a simple Gantt chart
-Adapted from https://bitbucket.org/DBrent/phd/src/1d1c5444d2ba2ee3918e0dfd5e886eaeeee49eec/visualisation/plot_gantt.py
+Adapted from https://bitbucket.org/DBrent/phd/src/1d1c5444d2ba2ee3918e0dfd5e886eaeeee49eec/visualisation/plot_gantt.py  # noqa
 BHC 2014
 
 Adapted by ddeboer 6/Feb/2015
 """
 from __future__ import absolute_import, print_function
 import datetime as dt
-import math
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as font_manager
 import matplotlib.dates
 from matplotlib.dates import MONTHLY, DateFormatter, rrulewrapper, RRuleLocator
 import numpy as np
@@ -56,12 +54,14 @@ def get_key(p, task_dates):
     return None
 
 
-def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=True, other_labels=None):
-    """This will plot a gantt chart of items (ylabels) and dates.
-       If included, it will plot percent complete for tasks and color code for milestones
-       (note, if included, it must have a status_codes entry for every label)
-       If included, it will connect predecessors (note, if included, it also must have an entry for every ylabel)
-       other_labels prints another label by the entry (to right on plot), it also must have an entry for every ylabel"""
+def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=True, other_labels=None):  # noqa
+    """
+    This will plot a gantt chart of items (ylabels) and dates.  If included, it will plot percent
+    complete for tasks and color code for milestones (note, if included, it must have a status_codes
+    entry for every label)  If included, it will connect predecessors (note, if included, it also
+    must have an entry for every ylabel) other_labels prints another label by the entry (to right on
+    plot), it also must have an entry for every ylabel
+    """
     # Check data
     if len(ylabels) != len(dates) or status_codes is not None and len(status_codes) != len(ylabels):
         print('Data not in correct format.')
@@ -115,7 +115,8 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
             plt.plot(end_date, i * step + ymin, mkr, color=clr, markersize=8)
         else:
             print("Should use the percent complete status_codes for color etc.")
-            plt.barh(i * step + ymin, end_date - start_date, left=start_date, height=0.3, align='center', color='blue', alpha=0.75)
+            plt.barh(i * step + ymin, end_date - start_date, left=start_date, height=0.3,
+                     align='center', color='blue', alpha=0.75)
 
     # Format the y-axis
     pos = np.arange(ymin, ymax + step / 2.0, step)  # add the step/2.0 to get that last value
