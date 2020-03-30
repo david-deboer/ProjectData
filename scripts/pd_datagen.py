@@ -13,12 +13,13 @@ dbtype = args.dbtype[0:2].lower()
 dbtypeDict = {'mi': 'milestone', 're': 'reqspec', 'in': 'interface', 'ri': 'risk'}
 
 d = Data_class.Data(dbtypeDict[dbtype])
-print 'Generate ' + dbtypeDict[dbtype] + ' documentation'
+print('Generate {} documentation'.format(dbtypeDict[dbtype]))
 d.readData()
 d.writeLatexDefFile()
 d.writeTex(args.outType, args.howsort)
 
-print dbtypeDict[dbtype] + ' flowdown'
+print(dbtypeDict[dbtype] + ' flowdown')
 flowdown = [[1, 'components'], [1, 'systems'], [2, 'components'], [3, 'components']]
 for fl in flowdown:
-    d.splitOnComponents(splitLevel=fl[0], splitType=fl[1], ver=args.outType, cp_mv=args.cp_mv, verbosity=False, deleteEmpty=True)
+    d.splitOnComponents(splitLevel=fl[0], splitType=fl[1], ver=args.outType,
+                        cp_mv=args.cp_mv, verbosity=False, deleteEmpty=True)

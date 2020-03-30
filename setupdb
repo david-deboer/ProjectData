@@ -1,2 +1,0 @@
-#! /bin/sh
-/Users/ddeboer/Documents/ubase/Code/ProjectData/setupdb.py $1 $2 $3

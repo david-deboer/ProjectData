@@ -1,3 +1,4 @@
+"""ProjectData."""
 import os
 from argparse import Namespace
 import pd_gantt
@@ -10,6 +11,8 @@ from ddb_util import state_variable
 
 class Data(state_variable.StateVar):
     """
+    Overall data class.
+
     This class has the functions to read in the data file [milestones/reqspecs/interfaces/risks.db]
         dbtype is the type of database [milestones, reqspecs, interfaces, risks]
         self.data is the "internal" database
@@ -19,8 +22,9 @@ class Data(state_variable.StateVar):
     """
 
     def __init__(self, dbtype, projectStart='14/09/01', db_file='databases.json', **kwargs):
+        """Initialize."""
         super().__init__([])
-        self.sv_load(load_from=db_file, keys_to_use='state_variables', use_to_initialize=db_file)
+        self.sv_load(load_from=db_file, keys_to_use='state_variables', use_to_init=db_file)
         self.state(**kwargs)
         self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
                                'noshow': self.noshow, 'file': self.fileout}
