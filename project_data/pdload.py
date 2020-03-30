@@ -1,5 +1,4 @@
 """Project Data overall load."""
-import os
 from project_data import Data_class
 
 
@@ -50,18 +49,3 @@ for db in available_db:
         co.getCost()
         co.getBudget()
         print("co : Cost")
-
-cwd = os.getcwd().lower()
-if 'hera' in cwd:
-    project_name = 'HERA'
-elif 'breakthroughlisten' in cwd:
-    project_name = 'BreakthroughListen'
-print("\nSetting defaults for {}".format(project_name))
-
-if project_name == 'HERA':
-    mi.state(find_dtype=['nsfB', 'nsfC', 'internal'])
-    mi.state(gantt_annot=['owner'])
-    mi.state(show_trace=False)
-elif project_name == 'BreakthroughListen':
-    mi.state(gantt_label=['other', 'description'])
-    mi.state(find_dtype=['T1', 'T1HW', 'T2'])

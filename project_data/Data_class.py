@@ -486,13 +486,14 @@ class Data(state_variable.StateVar):
             status = str(getattr(field_rec, 'status')).lower().strip()
             annot = []
             for ga in self.gantt_annot:
-                if isinstance(getattr(field_rec, ga), list):
-                    grp = [str(x) for x in getattr(field_rec, ga)]
+                gafr = getattr(field_rec, ga)
+                if isinstance(gafr, list):
+                    grp = [str(x) for x in gafr]
                     annot.append(','.join(grp))
-                elif getattr(field_rec, ga) is None:
-                    annot = []
+                elif gafr is None:
+                    pass
                 else:
-                    annot = [str(getattr(field_rec, ga))]
+                    annot.append(str(gafr))
             annot = '; '.join(annot)
             predv = []
             if 'milestoneTrace' in dir(field_rec):
