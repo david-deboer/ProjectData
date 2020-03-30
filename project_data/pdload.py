@@ -1,13 +1,7 @@
+"""Project Data overall load."""
 import os
-try:
-    import code_path
-    base_code_path = code_path.set('ProjectData')
-except ImportError:
-    import sys
-    base_code_path = input('Full path to ProjectData code:  ')
-    if os.path.exists(os.path.joing(base_code_path, 'Data_class.py')):
-        sys.path.append(base_code_path)
-import Data_class
+from project_data import Data_class
+
 
 # Shortcut for showing things not complete
 undone = ['late', 'moved', 'none', 'unknown']
@@ -16,9 +10,9 @@ print('undone defined: ', undone)
 available_db = sorted(Data_class.pd_utils.get_db_json('databases.json')[0].keys())
 available_db = ['milestone']  # for now since I don't use any others
 if 'architecture' in available_db:
-    import Arch_class
+    from project_data import Arch_class
 if 'cost' in available_db:
-    import Cost_class
+    from project_data import Cost_class
 
 
 print("Read in:")

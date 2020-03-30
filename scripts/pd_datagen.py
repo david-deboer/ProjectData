@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import argparse
-import Data_class
+from project_data import Data_class
 
 o = argparse.ArgumentParser()
 o.add_argument('dbtype', help='allowed data types are milestone, reqspec, risk, interface')

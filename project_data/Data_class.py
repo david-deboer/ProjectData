@@ -1,9 +1,9 @@
 """ProjectData."""
 import os
 from argparse import Namespace
-import pd_gantt
-import pd_utils
-import filters as FF
+from project_data import pd_gantt
+from project_data import pd_utils
+from project_data import filters as FF
 import datetime
 from pysqlite_simple import tables
 from ddb_util import state_variable
