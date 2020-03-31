@@ -345,11 +345,11 @@ class Data(state_variable.StateVar):
             elif fld == 'refname':
                 print("Don't do that.")
                 continue
-            elif fld not in self.db.records.cols:
+            elif fld not in self.db.tables['records'].cols:
                 print('{} is not a database field - skipping'.format(fld))
                 continue
             else:
-                old_data[fld] = getattr(self.records, fld)
+                old_data[fld] = getattr(self.db.records, fld)
                 new_data[fld] = new_value
                 changed = True
         if len(list(new_data.keys())):
