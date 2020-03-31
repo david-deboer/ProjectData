@@ -345,7 +345,7 @@ class Data(state_variable.StateVar):
             elif fld == 'refname':
                 print("Don't do that.")
                 continue
-            elif fld not in self.db['tables'].records.cols:
+            elif fld not in self.db.records.cols:
                 print('{} is not a database field - skipping'.format(fld))
                 continue
             else:
