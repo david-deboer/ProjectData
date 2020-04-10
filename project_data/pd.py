@@ -51,6 +51,6 @@ for db in available_db:
 print("pd.ref() shortcut for pd.mi.getref()")
 ref = mi.getref
 print("pd.find() shortcut for pd.mi.find()")
-ref = mi.getref
+find = mi.find
 print("pd.update() shortcut for pd.mi.update()")
-ref = mi.getref
+update = mi.update
