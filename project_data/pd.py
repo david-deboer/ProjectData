@@ -1,7 +1,6 @@
 """Project Data overall load."""
 from project_data import Data_class
 
-
 # Shortcut for showing things not complete
 undone = ['late', 'moved', 'none', 'unknown']
 print('undone defined: ', undone)
