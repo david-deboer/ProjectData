@@ -48,3 +48,5 @@ for db in available_db:
         co.getCost()
         co.getBudget()
         print("co : Cost")
+print("ref() shortcut for pd.mi.getref()")
+ref = mi.getref
