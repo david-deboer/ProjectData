@@ -1,8 +1,5 @@
 #! /usr/bin/env python
-from __future__ import absolute_import, division, print_function
-import code_path
-base_code_path = code_path.set('ProjectData')
-import Data_class
+from project_data import Data_class
 import sqlite3 as lite
 import os.path
 import argparse
@@ -12,14 +9,16 @@ import sys
 class Database:
     def __init__(self, dbtype='milestone'):
         self.dbtype = dbtype
-        self.tables = {'records': {'schema': '($ TEXT, value TEXT, description TEXT, dtype TEXT, status TEXT, owner TEXT, '
-                                             'other TEXT, notes TEXT, commentary TEXT, id INT, PRIMARY KEY($))',
+        self.tables = {'records': {'schema': '($ TEXT, value TEXT, description TEXT,'
+                                             'dtype TEXT, status TEXT, owner TEXT, '
+                                             'other TEXT, notes TEXT, commentary TEXT, '
+                                             'id INT, PRIMARY KEY($))',
                                    'ref_key': 'refname'},
                        'trace': {'schema': '($ TEXT, tracename TEXT, tracetype TEXT, comment TEXT)',
                                  'ref_key': 'refname'},
                        'types': {'schema': '($ TEXT, description TEXT, PRIMARY KEY($))',
                                  'ref_key': 'name'},
-                       'updated': {'schema': '($ TEXT, updated TEXT, by TEXT, note TEXT, level INT)',
+                       'updated': {'schema': '($ TEXT, updated TEXT, by TEXT, note TEXT, level INT)',  # noqa
                                    'ref_key': 'refname'}}
         dblist = Data_class.pd_utils.get_db_json('databases.json')
         dir_name = dblist[dbtype]['subdirectory']
@@ -118,7 +117,8 @@ class Database:
                             fld = s
                             if s == 'value':
                                 dt = V[s].split('/')
-                                val = "{:d}/{:02d}/{:02d}".format(int(dt[2]), int(dt[0]), int(dt[1]))
+                                val = ("{:d}/{:02d}/{:02d}"
+                                       .format(int(dt[2]), int(dt[0]), int(dt[1])))
                             else:
                                 val = V[s]
                             fin.write("{} | {} | {} | {}\n".format(tbl, ref, fld, val))
@@ -151,7 +151,8 @@ class Database:
 
 ap = argparse.ArgumentParser()
 ap.add_argument('dbtype', help="Name of database type (e.g. milestone).")
-ap.add_argument('-i', 'input-file', dest='input_file', help="Name of text input file to insert.", default=None)
+ap.add_argument('-i', 'input-file', dest='input_file', help="Name of text "
+                "input file to insert.", default=None)
 ap.add_argument('--sloppy', help="Start with the sloppy file.", action='store_true')
 args = ap.parse_args()
 

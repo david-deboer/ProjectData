@@ -80,11 +80,14 @@ class Data(state_variable.StateVar):
         i = self.db.types.name.index(dtype)
         rec = self.db.mk_entry_ns('types', i)
         print("Information for {}: {}".format(rec.name, rec.description))
+        quarters = {}
         if rec.start is not None:
             rec.start = pd_utils.get_time(rec.start)
+            quarters['start'] = rec.start
             print("  {}  ".format(datetime.datetime.strftime(rec.start, '%y/%m/%d')), end='')
         if rec.duration_months is not None:
             duration_qtr = int(rec.duration_months / 3.0)
+            quarters['duration'] = duration_qtr
             print("  {}  months, {} quarters".format(rec.duration_months, duration_qtr))
         if (rec.start is not None) and (rec.duration_months is not None):
             tdelt = datetime.timedelta(1.0)
@@ -99,6 +102,7 @@ class Data(state_variable.StateVar):
                     proj_year += 1
                 py_sym = pd_utils.quarter_symbol(q, proj_year)
                 qtr = pd_utils.get_qtr_date(q, rec.start)
+                quarters[q] = [qtr]
                 qstr = datetime.datetime.strftime(qtr, '%Y/%m/%d')
                 pspace = proj_year * ' '
                 if qtr.year > y_old:
@@ -106,7 +110,47 @@ class Data(state_variable.StateVar):
                     print("\t         {}     {}  {}{}".format(pd10, pd10, pspace, str(proj_year)))
                 print("\tQtr {:2d}:  {}".format(q + 1, qstr), end='')
                 qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
+                quarters[q].append(qtr)
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
+        return quarters
+
+    def make_find_stats(self, foundrec):
+        self.find_stats = {}
+        if not len(foundrec):
+            return
+        for gs in self.ganttable_status.keys():
+            self.find_stats[gs] = {"cnt": 0, "net": 0, "ave": 0.0}
+            for i in foundrec:
+                for stat_type in self.find_stats.keys():
+                    this_status = self.db.records.status[i]
+                    this_date = pd_utils.get_time(self.db.records.value[i])
+                    now = datetime.datetime.now()
+                    if this_date is None:
+                        lag = 0
+                    else:
+                        lag = (now - this_date).days
+                    if this_status is None:
+                        if lag <= 0:
+                            non_stat = 'none'
+                            val = 1
+                        else:
+                            self.find_stats[non_stat]['net'] += 1
+                            non_stat = 'late'
+                            val = lag
+                        self.find_stats[non_stat]['cnt'] += 1
+                        self.find_stats[non_stat]['ave'] += val
+                    elif stat_type.lower() in this_status.lower():
+                        self.find_status[stat_type.lower()]['cnt'] += 1
+                        try:
+                            val = float(this_status.split()[1])
+                            self.find_stats[stat_type.lower()]['net'] += 1
+                            self.find_stats[stat_type.lower()]['ave'] += val
+                        except ValueError:
+                            continue
+            for stat_type in self.find_stats.keys():
+                if self.find_stats[stat_type.lower()]['net']:
+                    self.find_stats[stat_type.lower()]['ave'] /=\
+                        self.find_stats[stat_type.lower()]['net']
 
 # ###############################################FIND###################################################
     def find(self, value, value2=None, field='value', match='weak', display='gantt', **kwargs):
@@ -133,6 +177,7 @@ class Data(state_variable.StateVar):
         self.filter = FF.Filter()
         self.filter.set_find_default()
         self.filter.dtype = self.find_dtype
+        self.find_stats = {}
         for k, v in kwargs.items():
             if k in self.filter.find_allowed:
                 vl = pd_utils.listify(v)
@@ -174,6 +219,7 @@ class Data(state_variable.StateVar):
                     foundrec.append(i)
         if len(foundrec):
             foundrec = self.getview(foundrec, self.display_howsort)
+            self.make_find_stats(foundrec)
             if display not in self.displayMethods.keys():
                 display = 'listing'
             return self.displayMethods[display](foundrec)

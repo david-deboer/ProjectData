@@ -4,6 +4,8 @@ import datetime
 def get_time(timestr):
     if timestr is None:
         return None
+    if isinstance(timestr, datetime.datetime):
+        return timestr
     timestr = timestr.strip()
     try:
         timeval = datetime.datetime.strptime(timestr, '%y/%m/%d')
