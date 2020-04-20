@@ -211,6 +211,8 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
         ax2.xaxis.set_major_formatter(formatter)
         labelsx = ax2.get_xticklabels()
         plt.setp(labelsx, rotation=30, fontsize=12)
+    return_info = {'cdf_x': cx_dat, 'cdf_y': cy_dat, 'cdf_tot': cdf_tot}
+    return return_info
 
 
 def colorBar():

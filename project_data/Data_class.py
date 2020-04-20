@@ -7,6 +7,14 @@ from project_data import filters as FF
 import datetime
 from pysqlite_simple import tables
 from ddb_util import state_variable
+from tabulate import tabulate
+from matplotlib import MatplotlibDeprecationWarning
+import matplotlib.dates
+import matplotlib.pyplot as plt
+import warnings
+import copy
+
+warnings.filterwarnings("ignore", category=MatplotlibDeprecationWarning)
 
 
 class Data(state_variable.StateVar):
@@ -35,6 +43,7 @@ class Data(state_variable.StateVar):
         self.inFile = os.path.join(self.dirName, self.db_list[dbtype]['dbfilename'])
         self.db = tables.DB(self.inFile)
         self.make_new_entry = False
+        self.gantt_return_info = None
 
     def read_data(self, since=None):
         """
@@ -70,7 +79,7 @@ class Data(state_variable.StateVar):
             self.trace_collate.setdefault(refname, [])
             self.trace_collate[refname].append(i)
 
-    def dtype_info(self, dtype='nsfB'):
+    def dtype_info(self, dtype='nsfB', plot_stats='complete,cdf'):
         """
         Print out a short timeline of dtype.
         """
@@ -80,7 +89,7 @@ class Data(state_variable.StateVar):
         i = self.db.types.name.index(dtype)
         rec = self.db.mk_entry_ns('types', i)
         print("Information for {}: {}".format(rec.name, rec.description))
-        quarters = {}
+        quarters = {'stats': [], 'stat_mid': [], 'complete_color': []}
         if rec.start is not None:
             rec.start = pd_utils.get_time(rec.start)
             quarters['start'] = rec.start
@@ -111,46 +120,116 @@ class Data(state_variable.StateVar):
                 print("\tQtr {:2d}:  {}".format(q + 1, qstr), end='')
                 qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
                 quarters[q].append(qtr)
+                self.find(quarters[q][0], quarters[q][1], dtype=dtype, display='noshow')
+                quarters['stats'].append(copy.copy(self.find_stats))
+                quarters['complete_color'].append(pd_gantt.lag2rgb(self.find_stats['complete']['ave']))  # noqa
+                mid_pt = (quarters[q][1] - quarters[q][0]).days / 2.0
+                quarters['stat_mid'].append(quarters[q][0] + datetime.timedelta(days=mid_pt))
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
-        return quarters
+                if plot_stats:
+                    gs, pn = plot_stats.split(',')
+                    self.plot_find_stats(gstatus=gs, figure=pn)
+        self.quarters = quarters
 
     def make_find_stats(self, foundrec):
         self.find_stats = {}
         if not len(foundrec):
             return
         for gs in self.ganttable_status.keys():
-            self.find_stats[gs] = {"cnt": 0, "net": 0, "ave": 0.0}
-            for i in foundrec:
+            self.find_stats[gs.lower()] = {"cnt": 0, "net": 0, "ave": 0.0}
+        self.find_stats["_time1"] = None
+        self.find_stats["_time2"] = None
+        now = datetime.datetime.now()
+        need_to_set_time = True
+        for i in foundrec:
+            this_status = self.db.records.status[i]
+            this_date = pd_utils.get_time(self.db.records.value[i])
+            if this_date is None:
+                continue
+            if need_to_set_time:
+                need_to_set_time = False
+                self.find_stats['_time1'] = this_date
+                self.find_stats['_time2'] = this_date
+            else:
+                if this_date < self.find_stats['_time1']:
+                    self.find_stats['_time1'] = this_date
+                if this_date > self.find_stats['_time2']:
+                    self.find_stats['_time2'] = this_date
+            if this_status is None:
+                if this_date is None:
+                    lag = 0
+                else:
+                    lag = (now - this_date).days
+                if lag <= 0:
+                    sdict = {'_type': 'none', 'net': 1, 'cnt': 1, 'ave': 1}
+                else:
+                    sdict = {'_type': 'late', 'net': 1, 'cnt': 1, 'ave': lag}
+            else:
+                this_status_type = None
                 for stat_type in self.find_stats.keys():
-                    this_status = self.db.records.status[i]
-                    this_date = pd_utils.get_time(self.db.records.value[i])
-                    now = datetime.datetime.now()
-                    if this_date is None:
-                        lag = 0
-                    else:
-                        lag = (now - this_date).days
-                    if this_status is None:
-                        if lag <= 0:
-                            non_stat = 'none'
-                            val = 1
-                        else:
-                            self.find_stats[non_stat]['net'] += 1
-                            non_stat = 'late'
-                            val = lag
-                        self.find_stats[non_stat]['cnt'] += 1
-                        self.find_stats[non_stat]['ave'] += val
-                    elif stat_type.lower() in this_status.lower():
-                        self.find_status[stat_type.lower()]['cnt'] += 1
-                        try:
-                            val = float(this_status.split()[1])
-                            self.find_stats[stat_type.lower()]['net'] += 1
-                            self.find_stats[stat_type.lower()]['ave'] += val
-                        except ValueError:
-                            continue
-            for stat_type in self.find_stats.keys():
-                if self.find_stats[stat_type.lower()]['net']:
-                    self.find_stats[stat_type.lower()]['ave'] /=\
-                        self.find_stats[stat_type.lower()]['net']
+                    if stat_type in this_status.lower():
+                        this_status_type = stat_type
+                        break
+                if this_status_type is None:
+                    print("Status type {} uncounted".format(this_status))
+                    continue
+                sdict = {'_type': this_status_type.lower(), 'net': 0, 'cnt': 1, 'ave': 0}
+                try:
+                    val = float(this_status.split()[1])
+                    sdict['net'] = 1
+                    sdict['ave'] = val
+                except (ValueError, IndexError):
+                    pass
+            this = sdict['_type'].lower()
+            for k, v in sdict.items():
+                if k.startswith('_'):
+                    continue
+                self.find_stats[this][k] += v
+        for stat_type, val in self.find_stats.items():
+            if stat_type.startswith('_'):
+                continue
+            if val['net']:
+                x = val['ave'] / val['net']
+                self.find_stats[stat_type]['ave'] = x
+
+    def show_find_stats(self):
+        headers = ['Type', 'Count', 'Net', 'Average']
+        table_data = []
+        print("\nPeriod: {}  -  {}"
+              .format(str(self.find_stats['_time1']), str(self.find_stats['_time2'])))
+        for k in sorted(list(self.find_stats.keys())):
+            if k.startswith('_'):
+                continue
+            ave = "{:.1f}".format(self.find_stats[k]['ave'])
+            row = [k, self.find_stats[k]['cnt'], self.find_stats[k]['net'], ave]
+            table_data.append(row)
+        print(tabulate(table_data, headers=headers, tablefmt='orgtbl'))
+
+    def plot_find_stats(self, gstatus='complete', figure='cdf'):
+        max_marker_size = 60.0
+        normalize_marker_to = 10.0
+        fig = plt.figure("Plot_Stats")
+        dt = (self.find_stats['_time2'] - self.find_stats['_time1']) / 2
+        x = self.find_stats['_time1'] + dt
+        x_num = matplotlib.dates.date2num(x)
+        clr = self.find_stats[gstatus]['ave']
+        sze = self.find_stats[gstatus]['net']
+        if figure == 'cdf' and self.gantt_return_info is not None:
+            y = None
+            for i, date_num in enumerate(self.gantt_return_info['cdf_x']):
+                if date_num > x_num:
+                    y = self.gantt_return_info['cdf_y'][i] / self.gantt_return_info['cdf_tot']
+                    break
+            if y is None:
+                y = 0.5
+        else:
+            y = self.find_stats[gstatus]['ave']
+        clr = pd_gantt.lag2rgb(clr)
+        sze = int((sze / normalize_marker_to) * max_marker_size)
+        plt.plot(x, y, 's', color=clr, markersize=sze)
+        ycdf = self.gantt_return_info['cdf_y'] / self.gantt_return_info['cdf_tot']
+        plt.plot(self.gantt_return_info['cdf_x'], ycdf, 'k')
+        fig.autofmt_xdate()
 
 # ###############################################FIND###################################################
     def find(self, value, value2=None, field='value', match='weak', display='gantt', **kwargs):
@@ -220,6 +299,7 @@ class Data(state_variable.StateVar):
         if len(foundrec):
             foundrec = self.getview(foundrec, self.display_howsort)
             self.make_find_stats(foundrec)
+            self.show_find_stats()
             if display not in self.displayMethods.keys():
                 display = 'listing'
             return self.displayMethods[display](foundrec)
@@ -566,8 +646,9 @@ class Data(state_variable.StateVar):
         if len(self.gantt_annot):
             other_labels = gdat.annots
         show_cdf = self.show_cdf and self.filter.status[0].lower() != 'late'
-        pd_gantt.plotGantt(gdat.labels, gdat.dates, gdat.preds, gdat.tstats,
-                           show_cdf=show_cdf, other_labels=other_labels)
+        g = pd_gantt.plotGantt(gdat.labels, gdat.dates, gdat.preds, gdat.tstats,
+                               show_cdf=show_cdf, other_labels=other_labels)
+        self.gantt_return_info = g
         if self.show_color_bar and self.filter.status[0].lower() != 'late':
             pd_gantt.colorBar()
 
