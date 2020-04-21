@@ -122,8 +122,8 @@ class Data(state_variable.StateVar):
                 quarters[q].append(qtr)
                 if not just_dates:
                     self.find(quarters[q][0], quarters[q][1], dtype=dtype, display='noshow')
-                quarters['stats'].append(copy.copy(self.find_stats))
-                quarters['complete_color'].append(pd_gantt.lag2rgb(self.find_stats['complete']['ave']))  # noqa
+                    quarters['stats'].append(copy.copy(self.find_stats))
+                    quarters['complete_color'].append(pd_gantt.lag2rgb(self.find_stats['complete']['ave']))  # noqa
                 mid_pt = (quarters[q][1] - quarters[q][0]).days / 2.0
                 quarters['stat_mid'].append(quarters[q][0] + datetime.timedelta(days=mid_pt))
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
