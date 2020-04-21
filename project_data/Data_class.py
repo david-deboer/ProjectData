@@ -453,6 +453,7 @@ class Data(state_variable.StateVar):
             update_entry.id = id
             if upnote is None:
                 upnote = 'Initial'
+            print("DC456  ",update_entry)
             self.db.add_entry('records', entries_to_add=update_entry)
             changed = True
         # Process it
