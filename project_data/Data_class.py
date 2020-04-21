@@ -79,7 +79,7 @@ class Data(state_variable.StateVar):
             self.trace_collate.setdefault(refname, [])
             self.trace_collate[refname].append(i)
 
-    def dtype_info(self, dtype='nsfB', plot_stats='complete,cdf'):
+    def dtype_info(self, dtype='nsfB', just_dates=False, plot_stats='complete,cdf'):
         """
         Print out a short timeline of dtype.
         """
@@ -120,13 +120,14 @@ class Data(state_variable.StateVar):
                 print("\tQtr {:2d}:  {}".format(q + 1, qstr), end='')
                 qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
                 quarters[q].append(qtr)
-                self.find(quarters[q][0], quarters[q][1], dtype=dtype, display='noshow')
+                if not just_dates:
+                    self.find(quarters[q][0], quarters[q][1], dtype=dtype, display='noshow')
                 quarters['stats'].append(copy.copy(self.find_stats))
                 quarters['complete_color'].append(pd_gantt.lag2rgb(self.find_stats['complete']['ave']))  # noqa
                 mid_pt = (quarters[q][1] - quarters[q][0]).days / 2.0
                 quarters['stat_mid'].append(quarters[q][0] + datetime.timedelta(days=mid_pt))
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
-                if plot_stats:
+                if not just_dates and plot_stats:
                     gs, pn = plot_stats.split(',')
                     self.plot_find_stats(gstatus=gs, figure=pn)
         self.quarters = quarters
