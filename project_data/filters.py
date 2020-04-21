@@ -4,6 +4,20 @@ find_allowed = ['dtype', 'status', 'owner', 'other', 'id']
 
 
 def agrees(supval, chkval, method='equals', retain_case=True):
+    """
+    Check if the supval/chkval "agree".
+
+    Parameter
+    ---------
+    supval : str
+        value 1
+    chkval : str
+        value 2
+    method : str
+        One of "equals", "in", "start"
+    retain_case : bool
+        Retain the case of the strings or not.
+    """
     if chkval is not None:
         if isinstance(supval, str):
             if not retain_case:
@@ -32,15 +46,20 @@ class Filter:
         self.pass_thru = ['any', 'all', 'n/a', '-1', -1]  # do all if one of these
 
     def set_find_default(self):
-        self.dtype = ['all']
-        self.owner = ['all']
-        self.other = ['all']
-        self.status = ['all']
+        for allowed in find_allowed:
+            setattr(self, allowed, ['all'])
         self.id = [-1]
 
     def _filter_field(self, finding, val):
         """
-        Checks 'val'
+        Checks if 'val' is in finding.
+
+        Parameters
+        ----------
+        finding : list
+            finding ...
+        val : list
+            val ...
         """
         f_val = [str(x).strip().lower() for x in val]
         for ifind in finding:
@@ -59,7 +78,7 @@ class Filter:
         rec:  is one record
         status:  is the status as returned by Data_class.check_ganttable_status
         """
-        for field in find_allowed:
+        for field in self.find_allowed:
             finding = getattr(self, field)
             rec_val = getattr(rec, field)
             if field == 'status':
