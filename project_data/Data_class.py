@@ -290,6 +290,7 @@ class Data(state_variable.StateVar):
                     continue
                 status = self.check_ganttable_status(self.db.records.status[i], val2check)
                 recns = self.db.mk_entry_ns('records', i)
+
                 if self.filter.on_fields(recns, status) and\
                    self.filter.on_time(val2check, value1time, value2time, match, recns):
                     foundrec.append(i)
@@ -707,12 +708,14 @@ class Data(state_variable.StateVar):
             for sb in sort_it_by:
                 sdt = getattr(self.db.records, sb)[i]
                 if sdt is None:
-                    sdt = ' '
+                    sdt = '{:06d}'.format(i)
                 elif isinstance(sdt, list):
                     ','.join(sdt)
+                if sdt in this_key:
+                    sdt = "{}{:06d}".format(sdt, i)
                 this_key.append(sdt)
             sortable_dict[tuple(this_key)] = i
         sl = []
-        for key, val in sorted(sortable_dict.items()):
-            sl.append(val)
+        for key in sorted(sortable_dict.keys()):
+            sl.append(sortable_dict[key])
         return sl

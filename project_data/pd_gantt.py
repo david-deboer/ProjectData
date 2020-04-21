@@ -171,6 +171,9 @@ def plotGantt(ylabels, dates, predecessors=None, status_codes=None, show_cdf=Tru
     plt.tight_layout()
 
     # ##---If plotting cdf, check to see if you should---###
+    cx_dat = None
+    cy_dat = None
+    cdf_tot = None
     if show_cdf:  # First get total number of milestones
         cdf_tot = 0
         for i in range(0, len(ylabels)):
