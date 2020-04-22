@@ -20,17 +20,17 @@ Owner     |        Name              | MSIP |_______| Owner | Name              
 ----------|--------------------------|------|-------|-------|------------------------------|----------
 analysis  | analysis                 | 16/18|       | pem   | power estimation and modeling| 16/18
 arc       | archive                  | 16   |       | pm    | project management           | 16/18
-asp       | analog signal processing | 16   |       | proc  | processing                   | 18
+asp       | analog signal processing | 16   |       | proc  | processing                   |    18
 comm      | commissioning            | 16   |       | psp   | power spectrum pipeline      | 16/18
-dsp       | digital signal processing| 16   |       | qa    | quality assurance            |
+dsp       | digital signal processing| 16   |       | qa    | quality assurance            | 16/18
 epo       | edu and public outreach  | 16/18|       | rtp   | real-time processing         | 16
-host      | hosting                  | 18   |       | sims  | simulations                  |
-img       | imaging                  |      |       | site  | site                         |
-lib       | librarian                | 16   |       | srdr  | science results/data release |
-mc        | monitor and control      | 16   |       | stats | statistics                   |
-node      | node                     | 16   |       | sys   | system                       | 18
-opm       | offline processing module| 16   |       | val   | validation                   |
-ops       | operations               | 18   |       |       |                              |
+host      | hosting                  | 16/18|       | sims  | simulations                  | 16/18
+img       | imaging                  |    18|       | site  | site                         | 16
+lib       | librarian                | 16   |       | srdr  | science results/data release | 16/18
+mc        | monitor and control      | 16/18|       | stats | statistics                   | 16/18
+node      | node                     | 16   |       | sys   | system                       |    18
+opm       | offline processing module| 16   |       | val   | validation                   |    18
+ops       | operations               |    18|       |       |                              |
 
 ## status
 * pd.undone is defined as ['late', 'moved', 'none', 'unknown']
