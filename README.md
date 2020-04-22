@@ -15,7 +15,7 @@ For a typical session:
 
 For a mysterious summary plot try:
 
-- In [1]: `project project_data import pd`
+- In [1]: `from project_data import pd`
 - In [2]: `pd.find('20/12/31', dtype='nsfB')`
 - In [3]: `pd.mi.dype_info()`
 
