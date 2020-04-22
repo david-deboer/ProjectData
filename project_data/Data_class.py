@@ -121,7 +121,7 @@ class Data(state_variable.StateVar):
                 qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
                 quarters[q].append(qtr)
                 if not just_dates:
-                    self.find(quarters[q][0], quarters[q][1], dtype=dtype, display='noshow')
+                    self.find(quarters[q][0], quarters[q][1], dtype=dtype, display='noshow', **self.last_find)  # noqa
                     quarters['stats'].append(copy.copy(self.find_stats))
                     quarters['complete_color'].append(pd_gantt.lag2rgb(self.find_stats['complete']['ave']))  # noqa
                 mid_pt = (quarters[q][1] - quarters[q][0]).days / 2.0
@@ -266,6 +266,7 @@ class Data(state_variable.StateVar):
                 print('keyword {} not allowed'.format(k))
                 continue
 
+        self.last_find = kwargs
         foundrec = []
         if value == 'since':  # assumes read_data(since='') has been executed
             for k in self.updated_collate:
