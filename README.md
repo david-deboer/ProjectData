@@ -10,7 +10,18 @@ For a typical session:
 -         This will produce too much - can filter below.
 - In [3]: `pd.find('20/06/01', owner='comm', dtype='nsfB', status=pd.undone)`
 - In [4]: `r = pd.ref("<Description from plot>")`
-- In [5]: `pd.find('20/05/01', '20/06/01', owner='mc', status=pd.undone, display='show')`
+-         This will give the data for that entry (need to include enough to be unique.)
+- In [5]: `pd.find('20/05/01', '20/06/01', owner='mc,dsp', status=pd.undone, display='show')`
+
+For a mysterious summary plot try:
+
+- In [1]: `project project_data import pd`
+- In [2]: `pd.find('20/12/31', dtype='nsfB')`
+- In [3]: `pd.mi.dype_info()`
+
+This plots the cumulative milestones, underlayed with squares that are proportional in size to the number
+of milestones met that quarter, and the color is the average completion (same color bar as for 'find').
+You can also filter the `pd.find` to narrow the scope.
 
 ## dtype
 * nsfA == MSIP-16

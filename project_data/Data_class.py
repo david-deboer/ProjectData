@@ -121,9 +121,13 @@ class Data(state_variable.StateVar):
                 qtr = pd_utils.get_qtr_date(q + 1, rec.start) - tdelt
                 quarters[q].append(qtr)
                 if not just_dates:
-                    self.find(quarters[q][0], quarters[q][1], dtype=dtype, display='noshow', **self.last_find)  # noqa
+                    self.find(quarters[q][0], quarters[q][1], display='noshow', **self.last_find)
                     quarters['stats'].append(copy.copy(self.find_stats))
-                    quarters['complete_color'].append(pd_gantt.lag2rgb(self.find_stats['complete']['ave']))  # noqa
+                    try:
+                        add_color = pd_gantt.lag2rgb(self.find_stats['complete']['ave'])
+                    except KeyError:
+                        add_color = 'w'
+                    quarters['complete_color'].append(add_color)
                 mid_pt = (quarters[q][1] - quarters[q][0]).days / 2.0
                 quarters['stat_mid'].append(quarters[q][0] + datetime.timedelta(days=mid_pt))
                 print("  -  {}  {}".format(datetime.datetime.strftime(qtr, '%Y/%m/%d'), py_sym))
@@ -210,7 +214,10 @@ class Data(state_variable.StateVar):
         max_marker_size = 45.0
         normalize_marker_to = 10.0
         fig = plt.figure("Plot_Stats")
-        dt = (self.find_stats['_time2'] - self.find_stats['_time1']) / 2
+        try:
+            dt = (self.find_stats['_time2'] - self.find_stats['_time1']) / 2
+        except KeyError:
+            return
         x = self.find_stats['_time1'] + dt
         x_num = matplotlib.dates.date2num(x)
         clr = self.find_stats[gstatus]['ave']
