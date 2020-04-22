@@ -1,0 +1,37 @@
+{
+    "databases":
+    {
+      "milestone":
+      {
+        "subdirectory": "",
+        "dbfilename":  "milestones.db",
+        "caption": "Milestones",
+        "ganttable": "True",
+        "traceable": "True"
+      }
+    },
+    "state_variables":
+    {
+        "gantt_label_length": 50,
+        "gantt_label": ["description"],
+        "gantt_annot": ["owner", "dtype"],
+        "display_howsort": ["value", "owner", "description"],
+        "find_dtype": ["nsfB", "nsfC"],
+        "output_filename": "fileout.csv",
+        "plot_predecessors": true,
+        "show_trace": false,
+        "show_color_bar": true,
+        "show_cdf": true,
+        "quiet_update": false,
+        "verbose":true
+    },
+    "ganttable_status":
+    {
+        "removed": "w",
+        "late": "r",
+        "moved": "y",
+        "none": "k",
+        "complete": "b",
+        "unknown": "m"
+    }
+}

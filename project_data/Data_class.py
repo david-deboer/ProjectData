@@ -207,7 +207,7 @@ class Data(state_variable.StateVar):
         print(tabulate(table_data, headers=headers, tablefmt='orgtbl'))
 
     def plot_find_stats(self, gstatus='complete', figure='cdf'):
-        max_marker_size = 60.0
+        max_marker_size = 45.0
         normalize_marker_to = 10.0
         fig = plt.figure("Plot_Stats")
         dt = (self.find_stats['_time2'] - self.find_stats['_time1']) / 2
@@ -453,8 +453,7 @@ class Data(state_variable.StateVar):
             update_entry.id = id
             if upnote is None:
                 upnote = 'Initial'
-            print("DC456  ",update_entry)
-            self.db.add_entry('records', entries_to_add=update_entry)
+            self.db.add_entry('records', colns_to_add=update_entry)
             changed = True
         # Process it
         new_data = {}
@@ -469,7 +468,7 @@ class Data(state_variable.StateVar):
                     trace_entries.tracename.append(tr)
                     trace_entries.tracetype.append(ttype)
                     print('\tAdding trace {}.{} to {}'.format(ttype, tr, refname))
-                self.db.add_entry('trace', entries_to_add=trace_entries)
+                self.db.add_entry('trace', colns_to_add=trace_entries)
                 changed = True
             elif fld == 'refname':
                 print("Don't do that.")
