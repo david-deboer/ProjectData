@@ -2,6 +2,7 @@
 
 This repo houses the HERA milestone database and viewing code.  
 Use `pip install .`
+Run from directory with setup.py, since it has `databases.json` and `milestones.db`
 
 For a typical session:
 
