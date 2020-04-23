@@ -1,12 +1,9 @@
 """ProjectData."""
 import os
 from argparse import Namespace
-from project_data import pd_gantt
-from project_data import pd_utils
-from project_data import filters as FF
+from project_data import pd_gantt, pd_utils, filters
 import datetime
-from pysqlite_simple import tables
-from ddb_util import state_variable
+from project_data import tables, state_variable
 from tabulate import tabulate
 from matplotlib import MatplotlibDeprecationWarning
 import matplotlib.dates
@@ -261,7 +258,7 @@ class Data(state_variable.StateVar):
         """
 
         # Set defaults and run through kwarg filters
-        self.filter = FF.Filter()
+        self.filter = filters.Filter()
         self.filter.set_find_default()
         self.filter.dtype = self.find_dtype
         self.find_stats = {}
@@ -368,7 +365,7 @@ class Data(state_variable.StateVar):
         """
         fndi = []
         for i, dbdesc in enumerate(getattr(self.db.records, search)):
-            if FF.agrees(sval, dbdesc, method=method, retain_case=retain_case):
+            if filters.agrees(sval, dbdesc, method=method, retain_case=retain_case):
                 fndi.append(i)
         if len(fndi) == 1:
             if verbose:
