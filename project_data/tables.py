@@ -131,9 +131,9 @@ class DB:
         if not entries_added:
             print("No new entries in {}".format(table))
         elif entries_added == 1:
-            print("New entry in {}".format(entry, table))
+            print("New entry in {}".format(table))
         else:
-            print("{} new entries in {}".format(entry, table))
+            print("{} new entries in {}".format(entries_added, table))
 
     def read_table(self, table, order_by=None, **where):
         """

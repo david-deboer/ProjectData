@@ -1,6 +1,6 @@
 # ProjectData
 
-This repo houses the HERA milestone database and viewing code.  
+This repo houses the HERA milestone database and viewing code.
 Use `pip install .`
 Run from directory with setup.py, since it has `databases.json` and `milestones.db`
 
@@ -18,15 +18,16 @@ For a mysterious summary plot try:
 
 - In [1]: `from project_data import pd`
 - In [2]: `pd.find('20/12/31', dtype='nsfB')`
-- In [3]: `pd.mi.dype_info()`
+- In [3]: `pd.mi.dtype_info()`
 
 This plots the cumulative milestones, underlayed with squares that are proportional in size to the number
 of milestones met that quarter, and the color is the average completion (same color bar as for 'find').
 You can also filter the `pd.find` to narrow the scope.
 
 ## dtype
-* nsfA == MSIP-16
-* nsfB == MSIP-18
+* nsfB == MSIP-16
+* nsfC == MSIP-18
+* gbmf == GBMF
 
 ## owner
 Owner     |        Name              | MSIP |_______| Owner | Name                         | MSIP
