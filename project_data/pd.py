@@ -13,6 +13,20 @@ if 'cost' in available_db:
     from project_data import Cost_class
 
 
+class ProjectDataShortcut:
+    def __init__(self, db):
+        self.db = db
+
+    def getref(self, desc):
+        self.ref = self.db.getref(desc)
+
+    def find(self, end_date, **kwargs):
+        self.db.find(end_date, **kwargs)
+
+    def update(self, **kwargs):
+        self.db.update(self.ref, **kwargs)
+
+
 print("Read in:")
 for db in available_db:
     if db == 'milestone':
@@ -48,9 +62,10 @@ for db in available_db:
         co.getCost()
         co.getBudget()
         print("co : Cost")
+pdshortcut = ProjectDataShortcut(mi)
 print("pd.ref() shortcut for pd.mi.getref()")
-ref = mi.getref
+ref = pdshortcut.getref
 print("pd.find() shortcut for pd.mi.find()")
-find = mi.find
-print("pd.update() shortcut for pd.mi.update()")
-update = mi.update
+find = pdshortcut.find
+print("pd.update() shortcut for pd.mi.update() [leave off initial ref]")
+update = pdshortcut.update
