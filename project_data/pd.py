@@ -17,8 +17,11 @@ class ProjectDataShortcut:
     def __init__(self, db):
         self.db = db
 
-    def getref(self, desc):
-        self.ref = self.db.getref(desc)
+    def getref(self, desc, **kwargs):
+        self.ref = self.db.getref(desc, **kwargs)
+
+    def setref(self, ref):
+        self.ref = ref
 
     def find(self, end_date, **kwargs):
         self.db.find(end_date, **kwargs)
@@ -62,10 +65,11 @@ for db in available_db:
         co.getCost()
         co.getBudget()
         print("co : Cost")
+
 pdshortcut = ProjectDataShortcut(mi)
-print("pd.ref() shortcut for pd.mi.getref()")
+print("\npd.ref() shortcut for pd.mi.getref() via ProjectDataShortcut")
 ref = pdshortcut.getref
-print("pd.find() shortcut for pd.mi.find()")
+print("pd.find() shortcut for pd.mi.find() via ProjectDataShortcut")
 find = pdshortcut.find
-print("pd.update() shortcut for pd.mi.update() [leave off initial ref]")
+print("pd.update() shortcut for pd.mi.update() via ProjectDataShortcut")
 update = pdshortcut.update
