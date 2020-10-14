@@ -73,3 +73,4 @@ print("pd.find() shortcut for pd.mi.find() via ProjectDataShortcut")
 find = pdshortcut.find
 print("pd.update() shortcut for pd.mi.update() via ProjectDataShortcut")
 update = pdshortcut.update
+setref = pdshortcut.setref

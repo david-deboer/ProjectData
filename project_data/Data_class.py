@@ -52,8 +52,8 @@ class Data(state_variable.StateVar):
 
         OTHER RANDOM SQLITE3 NOTES:
            for command line sqlite3, select etc (non .commands)  end with ;
-           sqlite3 database.db .dump > database.txt          produces a text version
-           sqlite3 database.db < database.txt                is the inverse
+           sqlite3 database.db .dump > database.sql          produces a text version
+           sqlite3 database.db < database.sql                is the inverse
         """
 
         self.db.read_table('records', order_by='id')
