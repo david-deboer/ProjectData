@@ -18,15 +18,15 @@ class ProjectDataShortcut:
         self.db = db
 
     def getref(self, desc, **kwargs):
+        """Provides a call to getref for the usual case of looking for a description."""
         self.ref = self.db.getref(desc, **kwargs)
 
-    def setref(self, ref):
-        self.ref = ref
-
     def find(self, end_date, **kwargs):
+        """Provides a call to the db find method."""
         self.db.find(end_date, **kwargs)
 
     def update(self, **kwargs):
+        """Provides a call to the db update method."""
         self.db.update(self.ref, **kwargs)
 
 
@@ -73,4 +73,3 @@ print("pd.find() shortcut for pd.mi.find() via ProjectDataShortcut")
 find = pdshortcut.find
 print("pd.update() shortcut for pd.mi.update() via ProjectDataShortcut")
 update = pdshortcut.update
-setref = pdshortcut.setref

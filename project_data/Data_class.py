@@ -3,7 +3,9 @@ import os
 from argparse import Namespace
 from project_data import pd_gantt, pd_utils, filters
 import datetime
-from project_data import tables, state_variable
+# For distribution copy these files over (+pysqls_utils) and swap comments
+# from project_data import pysqls_tables, state_variable
+from my_utils import state_variable, pysqls_tables
 from tabulate import tabulate
 from matplotlib import MatplotlibDeprecationWarning
 import matplotlib.dates
@@ -38,7 +40,7 @@ class Data(state_variable.StateVar):
         self.db_list, self.ganttable_status = pd_utils.get_db_json(db_file)
         self.dirName = self.db_list[dbtype]['subdirectory']
         self.inFile = os.path.join(self.dirName, self.db_list[dbtype]['dbfilename'])
-        self.db = tables.DB(self.inFile)
+        self.db = pysqls_tables.DB(self.inFile)
         self.make_new_entry = False
         self.gantt_return_info = None
 
