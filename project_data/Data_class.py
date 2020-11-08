@@ -30,11 +30,14 @@ class Data(state_variable.StateVar):
 
     def __init__(self, dbtype, projectStart='14/09/01', db_file='databases.json', **kwargs):
         """Initialize."""
-        super().__init__([])
+        super().__init__("Data_class")
         self.sv_load(load_from=db_file, keys_to_use='state_variables', use_to_init=db_file)
         self.state(**kwargs)
-        self.displayMethods = {'show': self.show, 'listing': self.listing, 'gantt': self.gantt,
-                               'noshow': self.noshow, 'file': self.fileout}
+        self.displayMethods = {'show': self.show,
+                               'listing': self.listing,
+                               'gantt': self.gantt,
+                               'noshow': self.noshow,
+                               'file': self.fileout}
         self.projectStart = projectStart
         self.dbtype = dbtype
         self.db_list, self.ganttable_status = pd_utils.get_db_json(db_file)
