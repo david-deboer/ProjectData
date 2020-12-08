@@ -624,6 +624,8 @@ class Data(state_variable.StateVar):
             status = str(getattr(field_rec, 'status')).lower().strip()
             annot = []
             for ga in self.gantt_annot:
+                if ga is None:
+                    continue
                 gafr = getattr(field_rec, ga)
                 if isinstance(gafr, list):
                     grp = [str(x) for x in gafr]
