@@ -612,7 +612,7 @@ class Data(state_variable.StateVar):
                 print("{} label not found to use.".format(gantt_label))
                 return
         for gantt_annot in self.gantt_annot:
-            if gantt_annot not in self.db.tables['records'].cols:
+            if gantt_annot not in self.db.tables['records'].cols and gantt_annot is not None:
                 print("{} annot not found to use.".format(gantt_annot))
                 return
         gdat = Namespace(labels=[], dates=[], tstats=[], preds=[], annots=[])
