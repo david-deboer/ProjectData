@@ -1,5 +1,5 @@
 """Project Data overall load."""
-from project_data import Data_class
+from project_data import Data_class, pd_tools
 
 # Shortcut for showing things not complete
 undone = ['late', 'moved', 'none', 'unknown']
@@ -69,7 +69,12 @@ for db in available_db:
 pdshortcut = ProjectDataShortcut(mi)
 print("\npd.ref() shortcut for pd.mi.getref() via ProjectDataShortcut")
 ref = pdshortcut.getref
-print("pd.find() shortcut for pd.mi.find() via ProjectDataShortcut")
+print("pd.find() shortcut for pd.mi.find() via ProjectDataShortcut with auto-ref")
 find = pdshortcut.find
 print("pd.update() shortcut for pd.mi.update() via ProjectDataShortcut")
 update = pdshortcut.update
+
+print("NSF-B")
+x = pd_tools.generate_recurring('9/1/16', '12/31/21')
+print("NSF-C")
+x = pd_tools.generate_recurring('10/1/18', '12/31/21')
