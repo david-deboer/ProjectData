@@ -74,7 +74,16 @@ find = pdshortcut.find
 print("pd.update() shortcut for pd.mi.update() via ProjectDataShortcut")
 update = pdshortcut.update
 
-print("NSF-B")
-x = pd_tools.generate_recurring('9/1/16', '12/31/21')
-print("NSF-C")
-x = pd_tools.generate_recurring('10/1/18', '12/31/21')
+cutoff = Data_class.datetime.datetime(year=2020, month=10, day=1)
+nsfb = []
+for i, b in enumerate(pd_tools.generate_recurring('9/1/16', '12/31/21', show_print=False)):
+    if b > cutoff:
+        nsfb.append(f"{i:02d}:  {Data_class.datetime.datetime.strftime(b, '%Y-%m-%d')}")
+nsfc = []
+for i, c in enumerate(pd_tools.generate_recurring('10/1/18', '12/31/21', show_print=False)):
+    if c > cutoff:
+        nsfc.append(f"{i:02d}:  {Data_class.datetime.datetime.strftime(c, '%Y-%m-%d')}")
+nsfc.append("")  # because I know c is one entry shorter...
+print("NSF-B\t\t\t\tNSF-C")
+for b, c in zip(nsfb, nsfc):
+    print(f"{b}\t\t\t{c}")
