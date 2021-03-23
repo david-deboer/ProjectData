@@ -452,19 +452,20 @@ class Data(state_variable.StateVar):
             print("No update:  {} already exists, can't add it as new.".format(refname))
             return False
 
-        update_entry = Namespace()
         changed = False
         if changing is None:
-            update_entry.refname = refname
+            changing = Namespace()
+            changing.refname = refname
             if 'id' not in kwargs.keys():
                 id = max(self.db.records.id) + 1
             else:
                 id = kwargs['id']
-            update_entry.id = id
+            changing.id = id
             if upnote is None:
                 upnote = 'Initial'
-            self.db.add_entry('records', cols_to_add=update_entry)
+            self.db.add_entry('records', cols_to_add=changing)
             changed = True
+            print(f"Making new refname {refname} with id {id}.")
         # Process it
         new_data = {}
         old_data = {}
