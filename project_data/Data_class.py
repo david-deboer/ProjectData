@@ -497,8 +497,10 @@ class Data(state_variable.StateVar):
         if changed:  # Need to update 'updated' database table
             self.db.read_table('records')
             old_vals = ''
-            for k, v in old_data.items():
-                old_vals += '[{}: {}]'.format(k, v)
+            if not self.make_new_entry:
+                i_chng = self.db.records.refname.index(refname)
+                for k, v in old_data.items():
+                    old_vals += '[{}: {}]'.format(k, v[i_chng])
 
             nupd = Namespace(refname=refname, previous=old_vals)
             if dt is None:
