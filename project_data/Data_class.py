@@ -83,7 +83,7 @@ class Data(state_variable.StateVar):
 
     def dtype_info(self, dtype='nsfB', just_dates=False, plot_stats='complete,cdf'):
         """
-        Print out a short timeline of dtype.
+        Print out a short timeline of dtype and make cdf-squares plot.
         """
         if dtype not in self.db.types.name:
             print("{} not found".format(dtype))
