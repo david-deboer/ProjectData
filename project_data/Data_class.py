@@ -81,7 +81,7 @@ class Data(state_variable.StateVar):
             self.trace_collate.setdefault(refname, [])
             self.trace_collate[refname].append(i)
 
-    def dtype_info(self, dtype='nsfB', just_dates=False, plot_stats='complete,cdf'):
+    def dtype_info(self, dtype='nsfC', just_dates=False, plot_stats='complete,cdf'):
         """
         Print out a short timeline of dtype and make cdf-squares plot.
         First run "find" with matching dtype, then this.
