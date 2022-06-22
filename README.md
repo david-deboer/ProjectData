@@ -9,7 +9,7 @@ For a typical session:
 - In [1]: `from project_data import pd`
 - In [2]: `pd.find('20/06/01')`
 -         This will produce too much - can filter below.
-- In [3]: `pd.find('20/06/01', owner='comm', dtype='nsfB', status=pd.undone)`
+- In [3]: `pd.find('20/06/01', owner='comm', dtype='nsfC', status=pd.undone)`
 - In [4]: `r = pd.ref("<Description from plot>")`
 -         This will give the data for that entry (need to include enough to be unique.)
 - In [5]: `pd.find('20/05/01', '20/06/01', owner='mc,dsp', status=pd.undone, display='show')`
@@ -17,7 +17,7 @@ For a typical session:
 For a mysterious summary plot try:
 
 - In [1]: `from project_data import pd`
-- In [2]: `pd.find('20/12/31', dtype='nsfB')`
+- In [2]: `pd.find('20/12/31', dtype='nsfC')`
 - In [3]: `pd.mi.dtype_info()`
 
 This plots the cumulative milestones, underlayed with squares that are proportional in size to the number
